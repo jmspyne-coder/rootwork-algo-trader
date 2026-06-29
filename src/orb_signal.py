@@ -235,7 +235,7 @@ def generate_signal(
     rr_ratio = rr_ratio or settings.REWARD_RISK_RATIO
     stop_mode = stop_mode or settings.STOP_MODE
     min_range_pct = min_range_pct or settings.MIN_RANGE_PCT
-    # Filter toggles/params: None -> fall back to config (note: default ON in v2).
+    # Filter toggles/params: None -> fall back to config (default OFF; see settings.py).
     filter_vwap = settings.FILTER_VWAP_ENABLED if filter_vwap is None else filter_vwap
     filter_rvol = settings.FILTER_RVOL_ENABLED if filter_rvol is None else filter_rvol
     rvol_threshold = settings.FILTER_RVOL_THRESHOLD if rvol_threshold is None else rvol_threshold

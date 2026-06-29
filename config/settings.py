@@ -41,20 +41,27 @@ MIN_RANGE_PCT = float(os.getenv("ALGO_MIN_RANGE_PCT", "0.003"))  # 0.3%
 # Each filter is evaluated on the FIRST breakout bar and independently
 # toggleable. With all three disabled, generate_signal() reproduces v1
 # behavior exactly. See src/orb_signal.py for the gating logic.
+#
+# Defaults are OFF. The 2024-2026 backtest showed all three ON cut 60
+# trades down to 2 (both losers): requiring RVOL + candle strength + the
+# right VWAP side on the single first-breakout bar almost never passes,
+# so the strategy effectively stops trading. v1 (filters off) nets a
+# ~2.2 Sharpe after realistic SPY costs. Re-enable a filter only once the
+# walk-forward sweep shows it beats baseline net of costs.
 
 # Filter 1 — VWAP directional filter: long requires breakout level above
 # session VWAP at breakout; short requires below.
-FILTER_VWAP_ENABLED = os.getenv("FILTER_VWAP_ENABLED", "true").lower() == "true"
+FILTER_VWAP_ENABLED = os.getenv("FILTER_VWAP_ENABLED", "false").lower() == "true"
 
 # Filter 2 — Relative volume: breakout-bar volume vs mean of prior N bars.
-FILTER_RVOL_ENABLED = os.getenv("FILTER_RVOL_ENABLED", "true").lower() == "true"
+FILTER_RVOL_ENABLED = os.getenv("FILTER_RVOL_ENABLED", "false").lower() == "true"
 FILTER_RVOL_THRESHOLD = float(os.getenv("FILTER_RVOL_THRESHOLD", "1.5"))
 FILTER_RVOL_LOOKBACK = int(os.getenv("FILTER_RVOL_LOOKBACK", "20"))  # prior bars
 
 # Filter 3 — Candle strength: where the breakout bar closes within its range.
 # long requires close in the top FILTER_CANDLE_STRENGTH_PCT of the bar;
 # short requires close in the bottom FILTER_CANDLE_STRENGTH_PCT.
-FILTER_CANDLE_STRENGTH_ENABLED = os.getenv("FILTER_CANDLE_STRENGTH_ENABLED", "true").lower() == "true"
+FILTER_CANDLE_STRENGTH_ENABLED = os.getenv("FILTER_CANDLE_STRENGTH_ENABLED", "false").lower() == "true"
 FILTER_CANDLE_STRENGTH_PCT = float(os.getenv("FILTER_CANDLE_STRENGTH_PCT", "0.3"))
 
 # ─── Risk Management ─────────────────────────────────────────────────
