@@ -1,0 +1,93 @@
+# Rootwork Algo Trader — Trading Schedule
+# Runs three jobs on market days: pre-market setup, ORB execution, EOD cleanup
+# Times are in UTC (ET + 4 during EDT, ET + 5 during EST)
+# Current: EDT → 9:25 ET = 13:25 UTC, 9:35 ET = 13:35 UTC, 3:45 ET = 19:45 UTC
+
+name: Trading Schedule
+
+on:
+  schedule:
+    # Pre-market: 9:25 AM ET (13:25 UTC during EDT)
+    - cron: '25 13 * * 1-5'
+    # ORB execution: 9:35 AM ET (13:35 UTC during EDT)
+    - cron: '35 13 * * 1-5'
+    # End of day: 3:45 PM ET (19:45 UTC during EDT)
+    - cron: '45 19 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Which script to run'
+        required: true
+        type: choice
+        options:
+          - pre_market
+          - execute_orb
+          - end_of_day
+          - backtest
+
+env:
+  ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+  ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+  MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  ALPACA_PAPER: 'true'
+  ALGO_TICKER: 'TQQQ'
+
+jobs:
+  pre-market:
+    if: >
+      (github.event_name == 'schedule' && github.event.schedule == '25 13 * * 1-5') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'pre_market')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.pre_market
+
+  execute-orb:
+    if: >
+      (github.event_name == 'schedule' && github.event.schedule == '35 13 * * 1-5') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'execute_orb')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.execute_orb
+
+  end-of-day:
+    if: >
+      (github.event_name == 'schedule' && github.event.schedule == '45 19 * * 1-5') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'end_of_day')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.end_of_day
+
+  backtest:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'backtest'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.backtest --ticker TQQQ --start 2024-01-01 --end 2026-06-01
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results
+          path: backtest_*.csv
