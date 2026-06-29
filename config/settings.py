@@ -1,103 +1,57 @@
-name: Trading Schedule
+"""
+Rootwork Algo Trader — Configuration
+All tunable parameters in one place. Modify here, not in strategy code.
 
-on:
-  schedule:
-    - cron: '25 13 * * 1-5'
-    - cron: '35 13 * * 1-5'
-    - cron: '45 19 * * 1-5'
-  workflow_dispatch:
-    inputs:
-      script:
-        description: 'Which script to run'
-        required: true
-        type: choice
-        options:
-          - pre_market
-          - execute_orb
-          - end_of_day
-          - backtest
-          - param_sweep
+ACTIVE CONFIG: SPY / 5m ORB / ATR 1.5x stop / 0.3% min range / 2:1 R:R
+Backtest results (2024-2026): 60 trades, 65% win rate, Sharpe 2.58, 2.9% MDD
+"""
+import os
+from dotenv import load_dotenv
 
-env:
-  ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
-  ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
-  MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
-  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  ALPACA_PAPER: 'true'
-  ALGO_TICKER: 'SPY'
+load_dotenv()
 
-jobs:
-  pre-market:
-    if: >
-      (github.event_name == 'schedule' && github.event.schedule == '25 13 * * 1-5') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'pre_market')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - run: python -m src.pre_market
+# ─── Alpaca Credentials ───────────────────────────────────────────────
+ALPACA_API_KEY = os.getenv("ALPACA_API_KEY_ID", "")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_API_SECRET_KEY", "")
+ALPACA_PAPER = os.getenv("ALPACA_PAPER", "true").lower() == "true"
+ALPACA_BASE_URL = (
+    "https://paper-api.alpaca.markets" if ALPACA_PAPER
+    else "https://api.alpaca.markets"
+)
 
-  execute-orb:
-    if: >
-      (github.event_name == 'schedule' && github.event.schedule == '35 13 * * 1-5') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'execute_orb')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - run: python -m src.execute_orb
+# ─── MotherDuck ───────────────────────────────────────────────────────
+MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
+MOTHERDUCK_DB = "my_db"
 
-  end-of-day:
-    if: >
-      (github.event_name == 'schedule' && github.event.schedule == '45 19 * * 1-5') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'end_of_day')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - run: python -m src.end_of_day
+# ─── Notifications ───────────────────────────────────────────────────
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
-  backtest:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'backtest'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - run: python -m src.backtest --ticker SPY --start 2024-01-01 --end 2026-06-01
-      - uses: actions/upload-artifact@v4
-        with:
-          name: backtest-results
-          path: backtest_*.csv
+# ─── Strategy: ORB Parameters ────────────────────────────────────────
+TICKER = os.getenv("ALGO_TICKER", "SPY")
+OPENING_RANGE_MINUTES = int(os.getenv("ALGO_ORB_MINUTES", "5"))
+REWARD_RISK_RATIO = float(os.getenv("ALGO_RR_RATIO", "2.0"))
+STOP_MODE = os.getenv("ALGO_STOP_MODE", "atr")
+ATR_PERIOD = int(os.getenv("ALGO_ATR_PERIOD", "14"))
+ATR_STOP_MULTIPLIER = float(os.getenv("ALGO_ATR_STOP_MULT", "1.5"))
 
-  param-sweep:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'param_sweep'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - run: python -m src.param_sweep --start 2024-01-01 --end 2026-06-01
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sweep-results
-          path: sweep_results_*.csv
+# Minimum opening range width as % of price — skip if too narrow
+MIN_RANGE_PCT = float(os.getenv("ALGO_MIN_RANGE_PCT", "0.003"))  # 0.3%
+
+# ─── Risk Management ─────────────────────────────────────────────────
+RISK_PER_TRADE_PCT = float(os.getenv("ALGO_RISK_PER_TRADE", "0.015"))  # 1.5%
+MAX_DAILY_LOSS_PCT = float(os.getenv("ALGO_MAX_DAILY_LOSS", "0.04"))   # 4%
+MAX_CONSECUTIVE_LOSSES = int(os.getenv("ALGO_MAX_CONSEC_LOSSES", "3"))
+MAX_DRAWDOWN_PCT = float(os.getenv("ALGO_MAX_DRAWDOWN", "0.12"))       # 12%
+MAX_TRADES_PER_DAY = int(os.getenv("ALGO_MAX_TRADES_DAY", "2"))
+
+# ─── Schedule (ET) ───────────────────────────────────────────────────
+MARKET_OPEN = "09:30"
+ORB_SIGNAL_TIME = "09:35"
+FORCE_CLOSE_TIME = "15:45"
+MARKET_CLOSE = "16:00"
+
+# ─── Backtest Defaults ───────────────────────────────────────────────
+BACKTEST_START = os.getenv("ALGO_BT_START", "2024-01-01")
+BACKTEST_END = os.getenv("ALGO_BT_END", "2026-06-01")
+BACKTEST_INITIAL_CAPITAL = float(os.getenv("ALGO_BT_CAPITAL", "10000"))
+BACKTEST_COMMISSION_PER_SHARE = 0.0
