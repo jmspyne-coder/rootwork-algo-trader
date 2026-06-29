@@ -2,9 +2,15 @@ name: Trading Schedule
 
 on:
   schedule:
-    - cron: '25 13 * * 1-5'
-    - cron: '35 13 * * 1-5'
-    - cron: '45 19 * * 1-5'
+    # Both EDT and EST UTC offsets are scheduled; the in-script ET guard
+    # (src/timeguard.py) makes only the correctly-timed run act, so the bot
+    # trades year-round instead of drifting an hour off across DST.
+    - cron: '25 13 * * 1-5'   # pre-market  09:25 ET (EDT)
+    - cron: '25 14 * * 1-5'   # pre-market  09:25 ET (EST)
+    - cron: '40 13 * * 1-5'   # execute ORB 09:40 ET (EDT)
+    - cron: '40 14 * * 1-5'   # execute ORB 09:40 ET (EST)
+    - cron: '45 19 * * 1-5'   # end-of-day  15:45 ET (EDT)
+    - cron: '45 20 * * 1-5'   # end-of-day  15:45 ET (EST)
   workflow_dispatch:
     inputs:
       script:
@@ -31,7 +37,7 @@ env:
 jobs:
   pre-market:
     if: >
-      (github.event_name == 'schedule' && github.event.schedule == '25 13 * * 1-5') ||
+      (github.event_name == 'schedule' && (github.event.schedule == '25 13 * * 1-5' || github.event.schedule == '25 14 * * 1-5')) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'pre_market')
     runs-on: ubuntu-latest
     steps:
@@ -45,7 +51,7 @@ jobs:
 
   execute-orb:
     if: >
-      (github.event_name == 'schedule' && github.event.schedule == '35 13 * * 1-5') ||
+      (github.event_name == 'schedule' && (github.event.schedule == '40 13 * * 1-5' || github.event.schedule == '40 14 * * 1-5')) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'execute_orb')
     runs-on: ubuntu-latest
     steps:
@@ -59,7 +65,7 @@ jobs:
 
   end-of-day:
     if: >
-      (github.event_name == 'schedule' && github.event.schedule == '45 19 * * 1-5') ||
+      (github.event_name == 'schedule' && (github.event.schedule == '45 19 * * 1-5' || github.event.schedule == '45 20 * * 1-5')) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'end_of_day')
     runs-on: ubuntu-latest
     steps:

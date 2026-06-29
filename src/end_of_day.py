@@ -28,6 +28,8 @@ def main():
     now = datetime.now(et)
     today_str = now.strftime("%Y-%m-%d")
     print(f"[END OF DAY] {now.strftime('%Y-%m-%d %H:%M ET')}")
+    from src.timeguard import ensure_et_window
+    ensure_et_window("15:41", "16:14", "END OF DAY")  # intended 15:45 ET
 
     trading_client = get_trading_client()
 

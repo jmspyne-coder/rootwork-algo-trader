@@ -33,6 +33,8 @@ def main():
     now = datetime.now(et)
     today = now.date()
     print(f"[EXECUTE ORB] {now.strftime('%Y-%m-%d %H:%M ET')}")
+    from src.timeguard import ensure_et_window
+    ensure_et_window("09:36", "10:14", "EXECUTE ORB")  # intended 09:40 ET
 
     # 1. Risk pre-check
     trading_client = get_trading_client()

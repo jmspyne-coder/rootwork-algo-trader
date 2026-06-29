@@ -11,7 +11,7 @@ Runs unattended on GitHub Actions cron, trades via Alpaca, logs to MotherDuck.
 ```
 GitHub Actions cron (UTC times in workflow; ET below)
   09:25 ET  pre_market.py   → equity, ATR, reset daily risk state, notify
-  09:35 ET  execute_orb.py  → fetch bars, detect breakout, risk checks, submit bracket order
+  09:40 ET  execute_orb.py  → fetch bars, detect breakout, risk checks, submit bracket order
   15:45 ET  end_of_day.py   → force-close, compute P&L, log to MotherDuck, email/Slack summary
 ```
 Each cron time maps to a separate job in `.github/workflows/trading_schedule.yml`, gated by `github.event.schedule`. `workflow_dispatch` lets you run any single script manually (incl. `backtest`, `param_sweep`).
@@ -43,4 +43,4 @@ Data fetches (backtest included) require valid Alpaca API keys. Pure-logic modul
 1. **(RESOLVED 2026-06-29) Risk state now persists via MotherDuck.** `load_risk_state` derives the cross-day quantities (peak equity, consecutive losing days) from `algo_daily_summary` and caches the full state in `algo_risk_state`, so the drawdown, consecutive-loss, and daily-loss halts now fire across the ephemeral GitHub Actions runners. If MotherDuck is unreachable it **fails closed** (halts for the day, reason `risk_state_unavailable`). The old local `config/risk_state.json` path is gone.
 2. **(RESOLVED 2026-06-29) Consecutive-loss deadlock is gone.** Consecutive losses are derived as the trailing run of losing *days*, so a flat or winning day resets the streak. A consecutive-loss halt is now a one-day cooldown, not a permanent lock.
 3. **(RESOLVED 2026-06-29) Per-trade outcomes are now reconciled.** `end_of_day.py` calls `src/reconcile.py`, which pulls the day's Alpaca fills, pairs them into round trips, and writes the realized exit (price, P&L, reason) onto each open `algo_trade_log` row. Entries are still logged at fill time as `exit_reason='open'` and resolved at EOD once the day is flat. Risk derivation stays day-based by design (from `algo_daily_summary`), but per-trade analytics (leak-finder, drift check) now have resolved data once the bot starts trading.
-4. **DST**: cron is hardcoded UTC. The 13:xx/19:xx values are correct for EDT; they drift by an hour under EST.
+4. **(RESOLVED 2026-06-29) DST handled.** Both EDT and EST cron offsets are scheduled and `src/timeguard.py` gates each scheduled run to its intended ET window, so only the correctly-timed run acts and the wrong-season cron no-ops. The bot trades year-round. `execute_orb` was also moved to 09:40 ET (a few minutes after the 5-min opening range closes) so a breakout bar exists when it looks — at 09:35 it fired the instant the range closed, before any breakout could form, which likely contributed to it rarely trading.

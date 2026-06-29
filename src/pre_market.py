@@ -21,6 +21,8 @@ def main():
     et = pytz.timezone("US/Eastern")
     now = datetime.now(et)
     print(f"[PRE-MARKET] {now.strftime('%Y-%m-%d %H:%M ET')}")
+    from src.timeguard import ensure_et_window
+    ensure_et_window("09:15", "09:59", "PRE-MARKET")  # intended 09:25 ET
 
     # 1. Get current equity
     try:
