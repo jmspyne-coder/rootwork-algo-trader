@@ -23,6 +23,7 @@ on:
           - end_of_day
           - backtest
           - param_sweep
+          - smoke_order
       dry_run:
         description: 'Dry run (execute_orb only): run the full path but place NO orders'
         required: false
@@ -116,3 +117,17 @@ jobs:
         with:
           name: sweep-results
           path: sweep_results_*.csv
+
+  smoke-order:
+    # Manual order-path test only. Places a tiny 1-share SPY bracket tagged
+    # strategy='smoke_test'. Run end_of_day after to reconcile, then delete the rows.
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'smoke_order'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.smoke_order
