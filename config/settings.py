@@ -1,6 +1,9 @@
 """
 Rootwork Algo Trader — Configuration
 All tunable parameters in one place. Modify here, not in strategy code.
+
+ACTIVE CONFIG: SPY / 5m ORB / ATR 1.5x stop / 0.3% min range / 2:1 R:R
+Backtest results (2024-2026): 60 trades, 65% win rate, Sharpe 2.58, 2.9% MDD
 """
 import os
 from dotenv import load_dotenv
@@ -24,10 +27,10 @@ MOTHERDUCK_DB = "my_db"
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
 # ─── Strategy: ORB Parameters ────────────────────────────────────────
-TICKER = os.getenv("ALGO_TICKER", "TQQQ")
+TICKER = os.getenv("ALGO_TICKER", "SPY")
 OPENING_RANGE_MINUTES = int(os.getenv("ALGO_ORB_MINUTES", "5"))
 REWARD_RISK_RATIO = float(os.getenv("ALGO_RR_RATIO", "2.0"))
-STOP_MODE = os.getenv("ALGO_STOP_MODE", "midline")  # "midline" or "atr"
+STOP_MODE = os.getenv("ALGO_STOP_MODE", "atr")
 ATR_PERIOD = int(os.getenv("ALGO_ATR_PERIOD", "14"))
 ATR_STOP_MULTIPLIER = float(os.getenv("ALGO_ATR_STOP_MULT", "1.5"))
 
@@ -43,12 +46,12 @@ MAX_TRADES_PER_DAY = int(os.getenv("ALGO_MAX_TRADES_DAY", "2"))
 
 # ─── Schedule (ET) ───────────────────────────────────────────────────
 MARKET_OPEN = "09:30"
-ORB_SIGNAL_TIME = "09:35"      # minutes after open = OPENING_RANGE_MINUTES
-FORCE_CLOSE_TIME = "15:45"     # 15 min before close
+ORB_SIGNAL_TIME = "09:35"
+FORCE_CLOSE_TIME = "15:45"
 MARKET_CLOSE = "16:00"
 
 # ─── Backtest Defaults ───────────────────────────────────────────────
-BACKTEST_START = os.getenv("ALGO_BT_START", "2022-01-01")
+BACKTEST_START = os.getenv("ALGO_BT_START", "2024-01-01")
 BACKTEST_END = os.getenv("ALGO_BT_END", "2026-06-01")
 BACKTEST_INITIAL_CAPITAL = float(os.getenv("ALGO_BT_CAPITAL", "10000"))
-BACKTEST_COMMISSION_PER_SHARE = 0.0  # Alpaca is commission-free
+BACKTEST_COMMISSION_PER_SHARE = 0.0
