@@ -1,17 +1,9 @@
-# Rootwork Algo Trader — Trading Schedule
-# Runs three jobs on market days: pre-market setup, ORB execution, EOD cleanup
-# Times are in UTC (ET + 4 during EDT, ET + 5 during EST)
-# Current: EDT → 9:25 ET = 13:25 UTC, 9:35 ET = 13:35 UTC, 3:45 ET = 19:45 UTC
-
 name: Trading Schedule
 
 on:
   schedule:
-    # Pre-market: 9:25 AM ET (13:25 UTC during EDT)
     - cron: '25 13 * * 1-5'
-    # ORB execution: 9:35 AM ET (13:35 UTC during EDT)
     - cron: '35 13 * * 1-5'
-    # End of day: 3:45 PM ET (19:45 UTC during EDT)
     - cron: '45 19 * * 1-5'
   workflow_dispatch:
     inputs:
@@ -24,6 +16,7 @@ on:
           - execute_orb
           - end_of_day
           - backtest
+          - param_sweep
 
 env:
   ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
@@ -91,7 +84,8 @@ jobs:
         with:
           name: backtest-results
           path: backtest_*.csv
-param-sweep:
+
+  param-sweep:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'param_sweep'
     runs-on: ubuntu-latest
     timeout-minutes: 30
