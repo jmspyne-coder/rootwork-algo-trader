@@ -99,6 +99,18 @@ def main():
     except Exception as e:
         print(f"  MotherDuck logging error: {e}")
 
+    # 4b. Reconcile per-trade outcomes. Entries were logged at fill time with
+    # exit_reason='open'; now that the day is flat, pull the fills and write the
+    # realized exit (price, P&L, reason) onto each open row. Best-effort.
+    try:
+        from src.reconcile import reconcile_today
+        mode = "paper" if settings.ALPACA_PAPER else "live"
+        res = reconcile_today(today_str, settings.TICKER, mode, trading_client)
+        print(f"  Reconciled {res['reconciled']}/{res['open_rows']} open trades "
+              f"({res['round_trips']} round trips from fills).")
+    except Exception as e:
+        print(f"  Trade reconciliation error (non-fatal): {e}")
+
     # 5. Slack notification
     notify_daily_summary(
         today_str,

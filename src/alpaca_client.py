@@ -136,6 +136,34 @@ def get_todays_orders(trading_client: TradingClient | None = None) -> list:
     return client.get_orders(filter=request)
 
 
+def get_todays_fills(ticker: str, trading_client: TradingClient | None = None) -> list[dict]:
+    """Today's FILLED orders for a symbol, normalized and sorted oldest-first.
+
+    Returns dicts {side, price, qty, time, type}. Used by reconciliation to
+    pair entries with their realized exits (bracket leg or EOD force-close).
+    """
+    client = trading_client or get_trading_client()
+    request = GetOrdersRequest(
+        status=QueryOrderStatus.CLOSED,
+        after=datetime.now().replace(hour=0, minute=0, second=0),
+        symbols=[ticker],
+    )
+    fills = []
+    for o in client.get_orders(filter=request):
+        filled_qty = float(o.filled_qty) if getattr(o, "filled_qty", None) else 0.0
+        if filled_qty <= 0 or not getattr(o, "filled_avg_price", None):
+            continue
+        fills.append({
+            "side": o.side.value if hasattr(o.side, "value") else str(o.side),
+            "price": float(o.filled_avg_price),
+            "qty": filled_qty,
+            "time": str(getattr(o, "filled_at", "")),
+            "type": o.type.value if hasattr(o.type, "value") else str(o.type),
+        })
+    fills.sort(key=lambda f: f["time"])
+    return fills
+
+
 # ─── Order Submission ─────────────────────────────────────────────────
 
 def submit_bracket_order(

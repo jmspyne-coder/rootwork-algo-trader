@@ -212,6 +212,33 @@ def log_trade(
     con.close()
 
 
+def get_open_trades(trade_date: str, ticker: str, mode: str) -> list[dict]:
+    """Open (unreconciled) trade rows for a day, oldest first."""
+    con = get_connection()
+    rows = con.execute(
+        "SELECT trade_id, entry_price, shares, direction, equity_before, entry_time "
+        "FROM algo_trade_log "
+        "WHERE trade_date = ? AND ticker = ? AND mode = ? AND exit_reason = 'open' "
+        "ORDER BY entry_time",
+        [trade_date, ticker, mode],
+    ).fetchall()
+    con.close()
+    keys = ["trade_id", "entry_price", "shares", "direction", "equity_before", "entry_time"]
+    return [dict(zip(keys, r)) for r in rows]
+
+
+def update_trade_exit(trade_id, exit_price, exit_time, exit_reason,
+                      pnl_per_share, trade_pnl, equity_after) -> None:
+    """Write the realized exit onto a previously-open trade row."""
+    con = get_connection()
+    con.execute(
+        "UPDATE algo_trade_log SET exit_price = ?, exit_time = ?, exit_reason = ?, "
+        "pnl_per_share = ?, trade_pnl = ?, equity_after = ? WHERE trade_id = ?",
+        [exit_price, exit_time, exit_reason, pnl_per_share, trade_pnl, equity_after, trade_id],
+    )
+    con.close()
+
+
 def log_daily_summary(
     summary_date: str,
     ticker: str,
