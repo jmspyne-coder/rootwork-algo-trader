@@ -211,13 +211,27 @@ def notify_risk_halt(reason):
     msg = f"*TRADING HALTED* :octagonal_sign:\nReason: {reason}"
     send_notification(msg, ":rotating_light:")
 
+    # Tailor the guidance to the halt reason so the email is actionable.
+    r = reason or ""
+    if "risk_state_unavailable" in r:
+        guidance = ("Could not read risk state from MotherDuck — likely the "
+                    "MOTHERDUCK_TOKEN secret or DB connectivity. The bot fails "
+                    "closed and will not trade until this is resolved.")
+    elif "max_drawdown" in r:
+        guidance = ("Max drawdown limit hit. This needs manual account review "
+                    "before trading resumes — it does not auto-clear.")
+    else:
+        guidance = ("Daily safety halt (daily-loss / consecutive-loss / "
+                    "max-trades). This clears automatically on the next "
+                    "trading day.")
+
     # Also email on halts — these are important
     send_email(
         f"⛔ Algo Trader HALTED — {reason}",
         f"""<div style="font-family:sans-serif;padding:20px;background:#1a1a1a;color:#e5e5e5;border-radius:8px;">
         <h2 style="color:#ef4444;">⛔ Trading Halted</h2>
         <p><strong>Reason:</strong> {reason}</p>
-        <p>Manual review required before trading resumes. Check the risk state in the repo.</p>
+        <p>{guidance}</p>
         </div>"""
     )
 
