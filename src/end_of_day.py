@@ -164,6 +164,17 @@ def main():
 
     heartbeat("ok", f"{trades_taken} trades, P&L ${daily_pnl:+.2f}")
     print(f"  Daily P&L: ${daily_pnl:+,.2f} | Drawdown: {drawdown:.1%}")
+
+    # Shadow A/B: record what each variant (per ticker, regime gate off/on) would
+    # have done today on the real data — a live, zero-risk tandem comparison.
+    # Best-effort: never let it affect the real EOD.
+    try:
+        from src.shadow import run_shadow
+        n = run_shadow(today_str, mode=mode)
+        print(f"  Shadow A/B: logged {n} variant row(s).")
+    except Exception as e:
+        print(f"  Shadow A/B logging failed (non-fatal): {e}")
+
     print("  End of day complete.")
 
 

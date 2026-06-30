@@ -31,6 +31,7 @@ on:
           - abtest
           - driftcheck
           - validate
+          - shadow_report
       dry_run:
         description: 'Dry run (execute_orb only): run the full path but place NO orders'
         required: false
@@ -231,3 +232,16 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - run: python -m src.driftcheck
+
+  shadow-report:
+    # Compare the live shadow A/B track records (variant tandem).
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'shadow_report'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.shadow --report
