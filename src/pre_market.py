@@ -10,10 +10,14 @@ import sys
 from datetime import datetime
 import pytz
 
-from src.alpaca_client import get_trading_client, get_account_equity, fetch_daily_bars, get_data_client
+from src.alpaca_client import (
+    get_trading_client, get_account_equity, fetch_daily_bars, get_data_client,
+    get_market_session_today,
+)
 from src.orb_signal import calculate_atr
 from src.risk_manager import load_risk_state, reset_daily_state, save_risk_state, can_trade
 from src.notifications import send_notification, notify_risk_halt
+from src.trade_logger import log_run
 from config import settings
 
 
@@ -32,6 +36,17 @@ def main():
     except Exception as e:
         print(f"  ERROR fetching account: {e}")
         sys.exit(1)
+
+    # 1a. Market-calendar gate: skip cleanly on weekends/holidays.
+    try:
+        session = get_market_session_today(trading_client)
+    except Exception as e:
+        print(f"  Calendar check failed ({e}); proceeding.")
+        session = {"date": "unknown"}
+    if session is None:
+        print("  Market closed today — skipping pre-market.")
+        log_run("pre_market", "closed_market", et_hhmm=now.strftime("%H:%M"))
+        sys.exit(0)
 
     # 1b. Safety: clear any stray/leftover open orders before the session
     # (e.g. an after-hours test order Alpaca queued for the open).
@@ -67,6 +82,7 @@ def main():
     if not allowed:
         notify_risk_halt(reason)
         print(f"  HALTED: {reason}")
+        log_run("pre_market", "halted", et_hhmm=now.strftime("%H:%M"), detail=reason)
         sys.exit(0)  # exit 0 so Actions doesn't show failure
 
     # 5. Notify
@@ -77,6 +93,7 @@ def main():
         f"Risk/trade: {settings.RISK_PER_TRADE_PCT:.1%} = ${equity * settings.RISK_PER_TRADE_PCT:,.0f} each",
         ":sunrise:",
     )
+    log_run("pre_market", "ok", et_hhmm=now.strftime("%H:%M"), detail=f"equity ${equity:,.0f}")
     print("  Pre-market setup complete.")
 
 

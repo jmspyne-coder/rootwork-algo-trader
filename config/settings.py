@@ -46,13 +46,20 @@ TICKERS = [t.strip() for t in os.getenv("ALGO_TICKERS", "SPY,QQQ").split(",") if
 # sizing) but places NO order and logs nothing. For safe live pressure-testing.
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 
-# Entry freshness window (ET). execute_orb only takes entries within this window;
-# a late/stale run (e.g. a catch-up after the machine was off) would chase a bad
-# fill, so it skips instead. Keeps the test record to clean, on-time entries.
+# Entry freshness window (ET). execute_orb only takes entries when the RUN fires
+# within this window. Coarse backstop against a late/stale catch-up run.
 # DRY_RUN and FORCE_ENTRY override.
 ENTRY_WINDOW_START = os.getenv("ALGO_ENTRY_START", "09:36")
-ENTRY_WINDOW_END = os.getenv("ALGO_ENTRY_END", "09:55")
+ENTRY_WINDOW_END = os.getenv("ALGO_ENTRY_END", "09:46")
 FORCE_ENTRY = os.getenv("FORCE_ENTRY", "false").lower() == "true"
+
+# Bar-freshness guards (minutes). The REAL freshness check: only enter if the
+# breakout (signal) bar is recent and the latest available bar is current. This
+# is immune to WHY a run is late and to data-feed lag, whereas the wall-clock
+# window above is only a coarse backstop. A late run or a stale/lagged data
+# frame is skipped rather than chased. FORCE_ENTRY/DRY_RUN bypass.
+SIGNAL_MAX_AGE_MIN = float(os.getenv("ALGO_SIGNAL_MAX_AGE_MIN", "6"))
+DATA_MAX_AGE_MIN = float(os.getenv("ALGO_DATA_MAX_AGE_MIN", "5"))
 OPENING_RANGE_MINUTES = int(os.getenv("ALGO_ORB_MINUTES", "5"))
 REWARD_RISK_RATIO = float(os.getenv("ALGO_RR_RATIO", "2.0"))
 STOP_MODE = os.getenv("ALGO_STOP_MODE", "atr")

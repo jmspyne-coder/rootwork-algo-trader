@@ -69,7 +69,10 @@ def compute_opening_range(
     or_end = open_time + pd.Timedelta(minutes=or_minutes)
     or_bars = market_bars[market_bars.index < or_end]
 
-    if len(or_bars) < max(1, or_minutes - 1):
+    # Require the FULL opening range. A partial range (e.g. data still arriving
+    # on a lagging live feed) computes a different OR than the backtest and can
+    # trigger a trade the backtest never took, so skip until all bars are in.
+    if len(or_bars) < or_minutes:
         return None
 
     or_high = float(or_bars["high"].max())

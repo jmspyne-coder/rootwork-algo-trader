@@ -107,28 +107,35 @@ def send_daily_email(
     equity_start: float,
     equity_end: float,
     drawdown_pct: float,
-    positions_closed: list = None,
+    trades: list = None,
     was_halted: bool = False,
     halt_reason: str = None,
     mode: str = "paper",
 ):
-    """Send formatted daily summary email."""
+    """Send formatted daily summary email. `trades` are the reconciled round
+    trips for the day (entry/exit/P&L/reason), so the email reflects what
+    actually happened, including target/stop exits, not just the 15:45
+    force-closed positions."""
     pnl_color = "#22c55e" if daily_pnl >= 0 else "#ef4444"
     pnl_emoji = "📈" if daily_pnl >= 0 else "📉"
     daily_return = ((equity_end - equity_start) / equity_start * 100) if equity_start > 0 else 0
     mode_badge = "🟡 PAPER" if mode == "paper" else "🟢 LIVE"
 
-    # Position detail rows
+    # Reconciled round-trip rows
     position_rows = ""
-    if positions_closed:
-        for pos in positions_closed:
-            pos_pnl = float(pos.get("unrealized_pl", 0))
-            pos_color = "#22c55e" if pos_pnl >= 0 else "#ef4444"
+    if trades:
+        for t in trades:
+            tp = float(t.get("trade_pnl") or 0)
+            row_color = "#22c55e" if tp >= 0 else "#ef4444"
+            entry = t.get("entry_price") or 0
+            exit_ = t.get("exit_price") or 0
+            label = f"{t.get('ticker','?')} {str(t.get('direction','')).upper()}"
+            detail = f"{t.get('shares','?')} sh &nbsp; ${entry:.2f} → ${exit_:.2f} &nbsp; <span style='color:#a0a0a0;'>({t.get('exit_reason','')})</span>"
             position_rows += f"""
             <tr>
-                <td style="padding:8px;border-bottom:1px solid #333;">{pos.get('symbol','—')}</td>
-                <td style="padding:8px;border-bottom:1px solid #333;">{pos.get('qty','—')} shares</td>
-                <td style="padding:8px;border-bottom:1px solid #333;color:{pos_color};">${pos_pnl:+,.2f}</td>
+                <td style="padding:8px;border-bottom:1px solid #333;">{label}</td>
+                <td style="padding:8px;border-bottom:1px solid #333;">{detail}</td>
+                <td style="padding:8px;border-bottom:1px solid #333;color:{row_color};">${tp:+,.2f}</td>
             </tr>"""
 
     halt_section = ""
@@ -185,19 +192,19 @@ def send_daily_email(
 
             {halt_section}
 
-            {f'''<h3 style="color:#a0a0a0;font-size:13px;text-transform:uppercase;margin:20px 0 8px;">Positions Closed</h3>
+            {f'''<h3 style="color:#a0a0a0;font-size:13px;text-transform:uppercase;margin:20px 0 8px;">Trades</h3>
             <table style="width:100%;border-collapse:collapse;background:#1a1a1a;border-radius:8px;">
                 <tr style="color:#a0a0a0;font-size:12px;text-transform:uppercase;">
-                    <th style="padding:8px;text-align:left;border-bottom:1px solid #333;">Symbol</th>
-                    <th style="padding:8px;text-align:left;border-bottom:1px solid #333;">Size</th>
+                    <th style="padding:8px;text-align:left;border-bottom:1px solid #333;">Trade</th>
+                    <th style="padding:8px;text-align:left;border-bottom:1px solid #333;">Detail</th>
                     <th style="padding:8px;text-align:left;border-bottom:1px solid #333;">P&L</th>
                 </tr>
                 {position_rows}
-            </table>''' if position_rows else '<p style="color:#a0a0a0;font-style:italic;">No positions today — signal filtered or no breakout detected.</p>'}
+            </table>''' if position_rows else '<p style="color:#a0a0a0;font-style:italic;">No trades today (no qualifying breakout, or signal filtered).</p>'}
 
             <div style="margin-top:24px;padding-top:16px;border-top:1px solid #333;color:#666;font-size:11px;">
-                Strategy: ORB v1 &nbsp;|&nbsp; SPY 5m &nbsp;|&nbsp; ATR 1.5x stop &nbsp;|&nbsp; 2:1 R:R<br>
-                Rootwork Algo Trader — {mode.upper()} MODE
+                Strategy: ORB v2 &nbsp;|&nbsp; {ticker} {settings.OPENING_RANGE_MINUTES}m &nbsp;|&nbsp; ATR {settings.ATR_STOP_MULTIPLIER}x stop &nbsp;|&nbsp; {settings.REWARD_RISK_RATIO:.0f}:1 R:R<br>
+                Rootwork Algo Trader &nbsp;·&nbsp; {mode.upper()} MODE
             </div>
         </div>
     </div>
@@ -239,3 +246,22 @@ def notify_risk_halt(reason):
 def notify_no_signal(ticker, date, reason="No breakout detected"):
     msg = f"*NO TRADE* | `{ticker}` | {date}\n{reason}"
     send_notification(msg, ":zzz:")
+
+
+def notify_health_alarm(severity: str, title: str, detail: str):
+    """Loud watchdog alert via Slack + email. severity: CRITICAL | WARN | OK.
+    Used by the morning health check so a silent miss becomes a loud presence."""
+    emoji = (":rotating_light:" if severity == "CRITICAL"
+             else ":warning:" if severity == "WARN" else ":white_check_mark:")
+    send_notification(f"*{severity}: {title}*\n{detail}", emoji)
+    if severity in ("CRITICAL", "WARN"):
+        color = "#ef4444" if severity == "CRITICAL" else "#f59e0b"
+        icon = "⛔" if severity == "CRITICAL" else "⚠️"
+        send_email(
+            f"{icon} Algo Trader {severity}: {title}",
+            f"""<div style="font-family:sans-serif;padding:20px;background:#1a1a1a;color:#e5e5e5;border-radius:8px;">
+            <h2 style="color:{color};">{title}</h2>
+            <p style="font-size:15px;">{detail}</p>
+            <p style="color:#666;font-size:12px;margin-top:16px;">Rootwork Algo Trader watchdog</p>
+            </div>""",
+        )

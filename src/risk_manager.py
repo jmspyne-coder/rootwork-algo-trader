@@ -71,24 +71,52 @@ def compute_history_state(history: list[dict]) -> tuple[float, int]:
     return peak, consec
 
 
+def _fetch_state_with_retry(mode: str, attempts: int = 3):
+    """Read history + cache from MotherDuck with a bounded retry, so a single
+    transient blip does not burn the whole trading day by failing closed."""
+    import time
+    last = None
+    for i in range(attempts):
+        try:
+            from src.trade_logger import fetch_daily_history, read_risk_cache
+            return fetch_daily_history(mode), read_risk_cache(mode)
+        except Exception as e:
+            last = e
+            if i < attempts - 1:
+                time.sleep(0.75 * (i + 1))
+    raise last
+
+
 def load_risk_state(equity: float | None = None, mode: str | None = None) -> RiskState:
     """Reconstruct risk state from MotherDuck (the system of record).
 
     Cross-day quantities (peak equity, consecutive losing days) are derived
     from algo_daily_summary; intraday counters (daily P&L, trades today,
     halt flags) come from the cached algo_risk_state row when it is today's.
+    The daily-P&L baseline is anchored to the PRIOR session's close, not to
+    current equity, so the daily-loss halt still works when pre_market did not
+    run. A max-drawdown halt is a sticky latch that does not auto-clear.
 
-    FAIL CLOSED: if MotherDuck cannot be reached, return a halted state. A
-    risk controller that cannot read its own state must not trade.
+    FAIL CLOSED: if equity is unknown/non-positive or MotherDuck cannot be
+    reached (after retries), return a halted state. A risk controller that
+    cannot read its own state, or does not know account equity, must not trade.
     """
     mode = mode or _mode()
     eq = equity or 0.0
+
+    # Unknown or non-positive equity == we do not know the account. Do not trade.
+    if equity is None or eq <= 0:
+        print(f"  [risk] equity unknown/non-positive ({equity}) — FAILING CLOSED (no trading).")
+        return RiskState(
+            peak_equity=eq, current_equity=eq, daily_starting_equity=eq,
+            daily_pnl=0.0, consecutive_losses=0, trades_today=0,
+            is_halted=True, halt_reason="equity_unavailable",
+        )
+
     try:
-        from src.trade_logger import fetch_daily_history, read_risk_cache
-        history = fetch_daily_history(mode)
-        cache = read_risk_cache(mode)
+        history, cache = _fetch_state_with_retry(mode)
     except Exception as e:
-        print(f"  [risk] MotherDuck unavailable — FAILING CLOSED (no trading): {e}")
+        print(f"  [risk] MotherDuck unavailable after retries — FAILING CLOSED (no trading): {e}")
         return RiskState(
             peak_equity=eq, current_equity=eq, daily_starting_equity=eq,
             daily_pnl=0.0, consecutive_losses=0, trades_today=0,
@@ -97,17 +125,28 @@ def load_risk_state(equity: float | None = None, mode: str | None = None) -> Ris
 
     peak_hist, consec = compute_history_state(history)
     peak_equity = max(peak_hist, eq)
+    prior_equity_end = history[-1]["equity_end"] if history else None
 
     today = _today_et()
     if cache and str(cache.get("as_of_date")) == today:
-        daily_starting = cache["daily_starting_equity"] or eq
+        daily_starting = cache["daily_starting_equity"] or (prior_equity_end or eq)
         daily_pnl = cache["daily_pnl"] or 0.0
         trades_today = cache["trades_today"] or 0
         is_halted = bool(cache["is_halted"])
         halt_reason = cache["halt_reason"]
     else:
-        daily_starting, daily_pnl, trades_today = eq, 0.0, 0
+        # No today-dated cache (pre_market did not run, or this is the first run
+        # today). Anchor the baseline to the prior session close, NOT to current
+        # equity — using current equity would zero out the day's P&L and silently
+        # disable the daily-loss halt.
+        daily_starting = prior_equity_end if prior_equity_end is not None else eq
+        daily_pnl, trades_today = 0.0, 0
         is_halted, halt_reason = False, None
+
+    # Sticky drawdown latch: a max-drawdown halt requires manual review and must
+    # NOT auto-clear overnight, so carry it regardless of the cache date.
+    if cache and cache.get("halt_reason") == "max_drawdown" and bool(cache.get("is_halted")):
+        is_halted, halt_reason = True, "max_drawdown"
 
     return RiskState(
         peak_equity=peak_equity,

@@ -68,6 +68,7 @@ def init_tables():
         );
     """)
     con.execute(RISK_STATE_DDL)
+    con.execute(RUN_LOG_DDL)
     con.close()
     # Bring a pre-existing v1 algo_trade_log up to the v2 schema (idempotent).
     migrate_tables()
@@ -94,13 +95,29 @@ RISK_STATE_DDL = """
 """
 
 
+# Durable per-run heartbeat. One row per entrypoint run, so a no-signal day
+# (ran, nothing to do) is distinguishable from a never-ran day (the silent
+# failure). The health-check watchdog reads this to prove execute_orb fired.
+RUN_LOG_DDL = """
+    CREATE TABLE IF NOT EXISTS algo_run_log (
+        run_date   DATE,
+        step       VARCHAR,    -- 'pre_market' | 'execute_orb' | 'end_of_day' | 'health_check'
+        ran_at     TIMESTAMP DEFAULT now(),
+        et_hhmm    VARCHAR,
+        outcome    VARCHAR,    -- entered | no_signal | halted | skipped_stale | closed_market | error | ok
+        detail     VARCHAR,
+        mode       VARCHAR
+    );
+"""
+
+
 def fetch_daily_history(mode: str) -> list[dict]:
     """Closed-day history for a mode, oldest first. Source of truth for the
     derived cross-day risk quantities (peak equity, consecutive losing days)."""
     con = get_connection()
     rows = con.execute(
-        "SELECT summary_date, daily_pnl, equity_end FROM algo_daily_summary "
-        "WHERE mode = ? ORDER BY summary_date",
+        "SELECT summary_date, SUM(daily_pnl) AS daily_pnl, MAX(equity_end) AS equity_end "
+        "FROM algo_daily_summary WHERE mode = ? GROUP BY summary_date ORDER BY summary_date",
         [mode],
     ).fetchall()
     con.close()
@@ -256,6 +273,7 @@ def log_daily_summary(
     was_halted: bool = False,
     halt_reason: str | None = None,
     mode: str = "paper",
+    strategy: str = "orb_v2",
 ):
     """Log end-of-day summary to MotherDuck."""
     con = get_connection()
@@ -263,12 +281,12 @@ def log_daily_summary(
         INSERT OR REPLACE INTO algo_daily_summary (
             summary_date, ticker, trades_taken, wins, losses, daily_pnl,
             equity_start, equity_end, max_drawdown_pct, consecutive_losses,
-            was_halted, halt_reason, mode
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            was_halted, halt_reason, strategy, mode
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
         summary_date, ticker, trades_taken, wins, losses, daily_pnl,
         equity_start, equity_end, max_drawdown_pct, consecutive_losses,
-        was_halted, halt_reason, mode,
+        was_halted, halt_reason, strategy, mode,
     ])
     con.close()
 
@@ -304,3 +322,89 @@ def get_recent_performance(days: int = 30) -> dict:
             "avg_daily_pnl": result[8],
         }
     return {}
+
+
+# ─── Per-run heartbeat (observability) ───────────────────────────────
+def log_run(step: str, outcome: str, et_hhmm: str = "",
+            detail: str = "", mode: str | None = None,
+            run_date: str | None = None) -> None:
+    """Write a durable heartbeat row for a single entrypoint run. This is what
+    makes 'ran but no signal' distinguishable from 'never ran' — the health
+    check asserts a row exists for (today, step)."""
+    import pytz
+    mode = mode or ("paper" if settings.ALPACA_PAPER else "live")
+    run_date = run_date or datetime.now(pytz.timezone("US/Eastern")).date().isoformat()
+    con = get_connection()
+    con.execute(RUN_LOG_DDL)
+    con.execute(
+        "INSERT INTO algo_run_log (run_date, step, et_hhmm, outcome, detail, mode) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [run_date, step, et_hhmm, outcome, detail, mode],
+    )
+    con.close()
+
+
+def get_run_today(step: str, mode: str, run_date: str) -> dict | None:
+    """Most recent run-log row for (run_date, step, mode), or None. The
+    health-check watchdog reads this to prove the step actually ran."""
+    con = get_connection()
+    con.execute(RUN_LOG_DDL)
+    row = con.execute(
+        "SELECT run_date, step, et_hhmm, outcome, detail, ran_at FROM algo_run_log "
+        "WHERE run_date = ? AND step = ? AND mode = ? ORDER BY ran_at DESC LIMIT 1",
+        [run_date, step, mode],
+    ).fetchone()
+    con.close()
+    if not row:
+        return None
+    keys = ["run_date", "step", "et_hhmm", "outcome", "detail", "ran_at"]
+    return dict(zip(keys, row))
+
+
+# ─── Reporting helpers (truthful per-trade summary) ──────────────────
+def get_daily_trade_stats(trade_date: str, mode: str) -> dict:
+    """Per-trade counts from RECONCILED round trips (the real track record).
+    Excludes still-open rows and smoke-test rows. This is the source of truth
+    for the daily summary's trades/wins/losses — never Alpaca order legs."""
+    con = get_connection()
+    row = con.execute(
+        "SELECT count(*), "
+        "count(*) FILTER (WHERE trade_pnl > 0), "
+        "count(*) FILTER (WHERE trade_pnl < 0), "
+        "COALESCE(sum(trade_pnl), 0) "
+        "FROM algo_trade_log "
+        "WHERE trade_date = ? AND mode = ? AND exit_reason <> 'open' "
+        "AND COALESCE(strategy, '') <> 'smoke_test'",
+        [trade_date, mode],
+    ).fetchone()
+    con.close()
+    return {"trades": row[0] or 0, "wins": row[1] or 0,
+            "losses": row[2] or 0, "realized_pnl": float(row[3] or 0.0)}
+
+
+def get_prior_equity_end(summary_date: str, mode: str) -> float | None:
+    """equity_end of the most recent summary strictly before summary_date — the
+    correct daily-P&L baseline, independent of whether pre_market ran."""
+    con = get_connection()
+    row = con.execute(
+        "SELECT equity_end FROM algo_daily_summary "
+        "WHERE mode = ? AND summary_date < ? ORDER BY summary_date DESC LIMIT 1",
+        [mode, summary_date],
+    ).fetchone()
+    con.close()
+    return float(row[0]) if row and row[0] is not None else None
+
+
+def get_todays_trades(trade_date: str, mode: str) -> list[dict]:
+    """Reconciled round trips for a day, for the daily email/report. Reflects
+    actual entries/exits/P&L, not just positions force-closed at 15:45."""
+    con = get_connection()
+    rows = con.execute(
+        "SELECT ticker, direction, entry_price, exit_price, shares, trade_pnl, exit_reason "
+        "FROM algo_trade_log WHERE trade_date = ? AND mode = ? AND exit_reason <> 'open' "
+        "AND COALESCE(strategy, '') <> 'smoke_test' ORDER BY entry_time",
+        [trade_date, mode],
+    ).fetchall()
+    con.close()
+    keys = ["ticker", "direction", "entry_price", "exit_price", "shares", "trade_pnl", "exit_reason"]
+    return [dict(zip(keys, r)) for r in rows]

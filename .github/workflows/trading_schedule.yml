@@ -11,6 +11,8 @@ on:
     - cron: '40 14 * * 1-5'   # execute ORB 09:40 ET (EST)
     - cron: '45 19 * * 1-5'   # end-of-day  15:45 ET (EDT)
     - cron: '45 20 * * 1-5'   # end-of-day  15:45 ET (EST)
+    - cron: '58 13 * * 1-5'   # health check 09:58 ET (EDT) — independent watchdog
+    - cron: '58 14 * * 1-5'   # health check 09:58 ET (EST)
   workflow_dispatch:
     inputs:
       script:
@@ -25,11 +27,20 @@ on:
           - param_sweep
           - smoke_order
           - cancel_orders
+          - health_check
       dry_run:
         description: 'Dry run (execute_orb only): run the full path but place NO orders'
         required: false
         type: boolean
         default: false
+
+concurrency:
+  # Serialize identical triggers so two firings can't both act. Combined with the
+  # deterministic client_order_id (broker rejects duplicates), this prevents a
+  # double-entry even if the PC and the Mac both fire. Queue, never cancel a run
+  # mid-order.
+  group: algo-${{ github.event.inputs.script || github.event.schedule }}
+  cancel-in-progress: false
 
 env:
   ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
@@ -145,3 +156,20 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - run: python -m src.cancel_orders
+
+  health-check:
+    # Independent morning watchdog (~09:58 ET): alarms LOUDLY if execute_orb did
+    # not run today. Runs on a clock separate from the trigger, so a dead
+    # trigger machine is exactly what it catches.
+    if: >
+      (github.event_name == 'schedule' && (github.event.schedule == '58 13 * * 1-5' || github.event.schedule == '58 14 * * 1-5')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'health_check')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.health_check
