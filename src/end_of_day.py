@@ -55,6 +55,14 @@ def main():
             )
         close_all_positions(trading_client)
         print("  All positions closed.")
+        # Let the closing fills settle before reconciliation tries to pair them
+        # (otherwise the exit fill isn't queryable yet and the row stays 'open').
+        import time
+        for _ in range(15):
+            time.sleep(2)
+            if not get_open_positions(trading_client):
+                break
+        time.sleep(3)
     else:
         print("  No open positions.")
 

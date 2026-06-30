@@ -228,13 +228,16 @@ def get_open_trades(trade_date: str, ticker: str, mode: str) -> list[dict]:
 
 
 def update_trade_exit(trade_id, exit_price, exit_time, exit_reason,
-                      pnl_per_share, trade_pnl, equity_after) -> None:
-    """Write the realized exit onto a previously-open trade row."""
+                      pnl_per_share, trade_pnl, equity_after, entry_price=None) -> None:
+    """Write the realized exit onto a previously-open trade row. Also corrects
+    entry_price to the actual entry fill when provided (COALESCE keeps the
+    existing value if entry_price is None)."""
     con = get_connection()
     con.execute(
-        "UPDATE algo_trade_log SET exit_price = ?, exit_time = ?, exit_reason = ?, "
-        "pnl_per_share = ?, trade_pnl = ?, equity_after = ? WHERE trade_id = ?",
-        [exit_price, exit_time, exit_reason, pnl_per_share, trade_pnl, equity_after, trade_id],
+        "UPDATE algo_trade_log SET entry_price = COALESCE(?, entry_price), exit_price = ?, "
+        "exit_time = ?, exit_reason = ?, pnl_per_share = ?, trade_pnl = ?, equity_after = ? "
+        "WHERE trade_id = ?",
+        [entry_price, exit_price, exit_time, exit_reason, pnl_per_share, trade_pnl, equity_after, trade_id],
     )
     con.close()
 

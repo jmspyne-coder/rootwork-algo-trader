@@ -58,19 +58,23 @@ def match_exits(open_rows: list[dict], trips: list[dict]) -> list[dict]:
     """Pair open trade rows (ordered by entry_time) with round trips (ordered by
     time) and compute the realized exit per row. Pure: returns update dicts.
 
-    P&L uses the logged entry_price (the bracket's intended entry) and the actual
-    exit fill, so exit_price - entry_price stays consistent with pnl_per_share.
+    P&L is computed from the ACTUAL fills (entry fill and exit fill), and the
+    row's entry_price is corrected to the real entry fill, so the per-trade P&L
+    matches what actually happened in the account (the logged entry was only the
+    signal level, which can differ from the fill on a slipped/late entry).
     """
     updates = []
     for row, trip in zip(open_rows, trips):
         sign = 1 if row["direction"] == "long" else -1
-        pnl_ps = sign * (trip["exit_price"] - row["entry_price"])
+        entry = trip["entry_price"]  # actual entry fill
+        pnl_ps = sign * (trip["exit_price"] - entry)
         shares = row.get("shares") or trip["qty"]
         trade_pnl = pnl_ps * shares
         eq_before = row.get("equity_before")
         eq_after = eq_before + trade_pnl if eq_before is not None else None
         updates.append({
             "trade_id": row["trade_id"],
+            "entry_price": round(entry, 4),
             "exit_price": round(trip["exit_price"], 4),
             "exit_time": trip["exit_time"],
             "exit_reason": trip["exit_reason"],
