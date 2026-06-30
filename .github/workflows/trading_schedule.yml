@@ -28,6 +28,9 @@ on:
           - smoke_order
           - cancel_orders
           - health_check
+          - abtest
+          - driftcheck
+          - validate
       dry_run:
         description: 'Dry run (execute_orb only): run the full path but place NO orders'
         required: false
@@ -185,3 +188,46 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - run: python -m src.health_check
+
+  abtest:
+    # Config A/B (baseline vs regime gate vs close-confirmed) + statistical
+    # validation in one run, per ticker.
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'abtest'
+    runs-on: ubuntu-latest
+    env:
+      ALGO_BT_SLIPPAGE_BPS: ${{ github.event.inputs.slippage_bps || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.abtest --ticker ${{ github.event.inputs.ticker || 'SPY' }} --start 2024-01-01 --end 2026-06-01
+
+  validate:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'validate'
+    runs-on: ubuntu-latest
+    env:
+      ALGO_BT_SLIPPAGE_BPS: ${{ github.event.inputs.slippage_bps || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.validate --ticker ${{ github.event.inputs.ticker || 'SPY' }} --start 2024-01-01 --end 2026-06-01
+
+  driftcheck:
+    # Live-vs-backtest drift check (data-gated until live trades accumulate).
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'driftcheck'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.driftcheck

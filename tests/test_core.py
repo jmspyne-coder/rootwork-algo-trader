@@ -118,6 +118,27 @@ def test_generate_signal_long_breakout():
     assert sig.entry_price == 100.2                                     # OR high
 
 
+def test_regime_gate_skips_big_overnight_gap():
+    rows = [[100, 100.2, 99.8, 100, 1000]] * 5 + [[100.2, 101.0, 100.2, 100.9, 3000]]
+    df = _bars(rows)                                                    # session open = 100
+    # prev close 90 -> +11% gap -> skipped when regime gate on
+    assert generate_signal(df, atr=1.0, min_range_pct=0.0, filter_candle=False,
+                           prev_close=90.0, filter_regime=True, regime_gap_max=0.015) is None
+    # prev close 99.6 -> 0.4% gap -> trades
+    assert generate_signal(df, atr=1.0, min_range_pct=0.0, filter_candle=False,
+                           prev_close=99.6, filter_regime=True, regime_gap_max=0.015) is not None
+
+
+def test_breakout_confirm_close_vs_wick():
+    # breakout bar wicks to 101 (> OR high 100.2) but CLOSES at 100.0 (inside OR)
+    rows = [[100, 100.2, 99.8, 100, 1000]] * 5 + [[100.1, 101.0, 100.0, 100.0, 3000]]
+    df = _bars(rows)
+    assert generate_signal(df, atr=1.0, min_range_pct=0.0, filter_candle=False,
+                           breakout_confirm="wick") is not None       # wick penetration counts
+    assert generate_signal(df, atr=1.0, min_range_pct=0.0, filter_candle=False,
+                           breakout_confirm="close") is None          # close inside -> no trade
+
+
 # ─── live freshness guards ────────────────────────────────────────────
 def test_drop_forming_bar():
     et = pytz.timezone("US/Eastern")

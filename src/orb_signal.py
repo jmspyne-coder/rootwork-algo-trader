@@ -223,6 +223,10 @@ def generate_signal(
     filter_candle: bool = None,
     candle_pct: float = None,
     entry_cutoff: str | None = None,
+    prev_close: float | None = None,
+    filter_regime: bool = None,
+    regime_gap_max: float = None,
+    breakout_confirm: str = None,
 ) -> ORBSignal | None:
     """
     Core signal generator. Scans post-opening-range bars for breakout.
@@ -245,6 +249,9 @@ def generate_signal(
     rvol_threshold = settings.FILTER_RVOL_THRESHOLD if rvol_threshold is None else rvol_threshold
     filter_candle = settings.FILTER_CANDLE_STRENGTH_ENABLED if filter_candle is None else filter_candle
     candle_pct = settings.FILTER_CANDLE_STRENGTH_PCT if candle_pct is None else candle_pct
+    filter_regime = settings.FILTER_REGIME_GAP_ENABLED if filter_regime is None else filter_regime
+    regime_gap_max = settings.FILTER_REGIME_GAP_MAX_PCT if regime_gap_max is None else regime_gap_max
+    breakout_confirm = (breakout_confirm or settings.BREAKOUT_CONFIRM or "wick").lower()
 
     # Step 1: compute opening range
     orng = compute_opening_range(intraday_bars, or_minutes)
@@ -255,8 +262,15 @@ def generate_signal(
     if orng["range_pct"] < min_range_pct:
         return None
 
-    # Step 3: scan post-OR bars for first breakout
+    # Regime gate: skip chaotic overnight-gap days (optional, needs prev_close).
     market_bars = intraday_bars.between_time("09:30", "15:44")
+    if filter_regime and prev_close and not market_bars.empty:
+        today_open = float(market_bars.iloc[0]["open"])
+        gap = (today_open - prev_close) / prev_close if prev_close else 0.0
+        if abs(gap) > regime_gap_max:
+            return None
+
+    # Step 3: scan post-OR bars for first breakout
     post_or = market_bars[market_bars.index >= orng["or_end"]]
 
     # Session VWAP base (full session up to force-close cutoff), computed once.
@@ -271,8 +285,13 @@ def generate_signal(
     for idx, row in post_or.iterrows():
         if cutoff_t is not None and idx.time() > cutoff_t:
             break
-        is_long = row["high"] > orng["or_high"]
-        is_short = row["low"] < orng["or_low"]
+        if breakout_confirm == "close":
+            # require the bar to CLOSE beyond the opening range (fewer false breakouts)
+            is_long = row["close"] > orng["or_high"]
+            is_short = row["close"] < orng["or_low"]
+        else:
+            is_long = row["high"] > orng["or_high"]
+            is_short = row["low"] < orng["or_low"]
         if not (is_long or is_short):
             continue
 

@@ -34,6 +34,9 @@ def run_backtest(
     candle_pct: float = None,
     entry_cutoff: str = None,
     capital_cap_frac: float = None,
+    filter_regime: bool = None,
+    regime_gap_max: float = None,
+    breakout_confirm: str = None,
 ) -> dict:
     """
     Full backtest pipeline:
@@ -88,9 +91,10 @@ def run_backtest(
         day_bars = intraday_bars[intraday_bars["date"] == day].copy()
         day_bars = day_bars.drop(columns=["date"])
 
-        # Calculate ATR from daily bars up to this day
+        # Calculate ATR + prior close from daily bars strictly before this day.
         daily_up_to = daily_bars[daily_bars.index.date < day]
         atr = calculate_atr(daily_up_to, settings.ATR_PERIOD)
+        prev_close = float(daily_up_to.iloc[-1]["close"]) if len(daily_up_to) else None
 
         # Generate signal
         signal = generate_signal(
@@ -105,6 +109,10 @@ def run_backtest(
             filter_candle=filter_candle,
             candle_pct=candle_pct,
             entry_cutoff=entry_cutoff,
+            prev_close=prev_close,
+            filter_regime=filter_regime,
+            regime_gap_max=regime_gap_max,
+            breakout_confirm=breakout_confirm,
         )
         if signal is None:
             continue
@@ -141,6 +149,9 @@ def run_backtest(
         "candle_pct": candle_pct,
         "entry_cutoff": entry_cutoff,
         "capital_cap_frac": capital_cap_frac,
+        "filter_regime": filter_regime,
+        "regime_gap_max": regime_gap_max,
+        "breakout_confirm": breakout_confirm,
     }
     summary["trades"] = executed_trades
 
@@ -305,6 +316,12 @@ def main():
                         help="ET cutoff for the first breakout, e.g. 09:41 (default: config; '' or 23:59 = all-day)")
     parser.add_argument("--cap-frac", type=float, default=None,
                         help="per-position notional cap as fraction of equity (default: 1/N symbols)")
+    parser.add_argument("--regime", action=argparse.BooleanOptionalAction, default=None,
+                        help="enable/disable the overnight-gap regime gate (default: config)")
+    parser.add_argument("--gap-max", type=float, default=None,
+                        help="max |overnight gap| before skipping the day, e.g. 0.015 (default: config)")
+    parser.add_argument("--breakout-confirm", default=None, choices=["wick", "close"],
+                        help="breakout trigger: wick (any penetration) or close (close beyond OR)")
     args = parser.parse_args()
 
     summary = run_backtest(
@@ -322,6 +339,9 @@ def main():
         candle_pct=args.candle_pct,
         entry_cutoff=args.entry_cutoff,
         capital_cap_frac=args.cap_frac,
+        filter_regime=args.regime,
+        regime_gap_max=args.gap_max,
+        breakout_confirm=args.breakout_confirm,
     )
     print_summary(summary)
 

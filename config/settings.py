@@ -100,6 +100,18 @@ FILTER_RVOL_LOOKBACK = int(os.getenv("FILTER_RVOL_LOOKBACK", "20"))  # prior bar
 FILTER_CANDLE_STRENGTH_ENABLED = os.getenv("FILTER_CANDLE_STRENGTH_ENABLED", "true").lower() == "true"
 FILTER_CANDLE_STRENGTH_PCT = float(os.getenv("FILTER_CANDLE_STRENGTH_PCT", "0.5"))
 
+# Filter 4 — Regime gate: skip the whole day when the overnight gap (today's
+# open vs the prior session close) is too large, i.e. a chaotic gap day. From an
+# r/ai_trading idea (a 1.5% gap filter). Needs prev_close passed to
+# generate_signal. Default OFF — validate before enabling.
+FILTER_REGIME_GAP_ENABLED = os.getenv("FILTER_REGIME_GAP_ENABLED", "false").lower() == "true"
+FILTER_REGIME_GAP_MAX_PCT = float(os.getenv("FILTER_REGIME_GAP_MAX", "0.015"))  # 1.5%
+
+# Breakout confirmation: 'wick' = any penetration of the OR (the v1 default),
+# 'close' = require the breakout bar to CLOSE beyond the OR (fewer false
+# breakouts, possibly fewer/later entries). A/B before changing live.
+BREAKOUT_CONFIRM = os.getenv("ALGO_BREAKOUT_CONFIRM", "wick").lower()
+
 # ─── Risk Management ─────────────────────────────────────────────────
 RISK_PER_TRADE_PCT = float(os.getenv("ALGO_RISK_PER_TRADE", "0.015"))  # 1.5%
 MAX_DAILY_LOSS_PCT = float(os.getenv("ALGO_MAX_DAILY_LOSS", "0.04"))   # 4%

@@ -93,19 +93,22 @@ def trade_symbol(ticker, equity, capital_cap, data_client, trading_client, today
 
     # ATR for the stop. Exclude today's partial daily bar (would deflate ATR ->
     # too-tight stop -> oversize) and use SIP so it matches the backtest's ATR.
+    prev_close = None
     try:
         start_daily = (now - timedelta(days=40)).strftime("%Y-%m-%d")
         end_daily = (now - timedelta(days=1)).strftime("%Y-%m-%d")
         daily = fetch_daily_bars(ticker, start_daily, end_daily, data_client, feed="sip")
         atr = calculate_atr(daily, settings.ATR_PERIOD)
+        if daily is not None and not daily.empty:
+            prev_close = float(daily.iloc[-1]["close"])  # prior session close (regime gate)
     except Exception as e:
         print(f"  [{ticker}] ATR fetch failed: {e}")
         atr = None
     if atr is None:
         print(f"  [{ticker}] WARNING: ATR unavailable — stop falls back to OR midline (not the validated ATR stop).")
 
-    # Signal (v1 + candle filter via config defaults).
-    signal = generate_signal(intraday, atr=atr)
+    # Signal (v1 + candle filter via config defaults; regime gate uses prev_close).
+    signal = generate_signal(intraday, atr=atr, prev_close=prev_close)
     if signal is None:
         notify_no_signal(ticker, str(today))
         print(f"  [{ticker}] no ORB signal.")
