@@ -1,0 +1,198 @@
+{
+  "meta": {
+    "source": "results/trades_{SPY,QQQ}.csv (real backtest runs), recomputed at 3 cost tiers",
+    "period": "2024-01-01 to 2026-06-01 (SIP historical, 1-min bars)",
+    "capital": 10000.0,
+    "config": "5m ORB, ATR 1.5x stop, 0.3% min range, 2:1 RR, candle top-50% ON, per-symbol notional cap 50%",
+    "cost_model": "round_trip_bps = 2*slippage + spread; CSVs generated at 3 bps",
+    "generated_utc": "2026-07-01T01:01:03.705507+00:00"
+  },
+  "tickers": {
+    "SPY": {
+      "trades": 46,
+      "win_rate": 0.6087,
+      "binomial_p_winrate_vs_50pct": 0.091962,
+      "gross_sharpe": 3.06,
+      "net_sharpe_3bps": 2.65,
+      "net_sharpe_7bps": 2.1,
+      "net_sharpe_10bps": 1.69,
+      "net3_sharpe_pct_of_gross": 0.866,
+      "max_drawdown_net3": 0.0239,
+      "profit_factor_net3": 1.6,
+      "avg_win_net3": 51.88,
+      "avg_loss_net3": -50.45,
+      "total_return_net3": 0.0545,
+      "lag1_autocorr_daily_pnl": 0.0997,
+      "bootstrap_iid_90ci_sharpe": {
+        "method": "iid",
+        "ci_pct": 90,
+        "n": 10000,
+        "median": 2.75,
+        "lo": -1.24,
+        "hi": 6.46,
+        "p_sharpe_le_0": 0.1262
+      },
+      "bootstrap_iid_95ci_sharpe": {
+        "method": "iid",
+        "ci_pct": 95,
+        "n": 10000,
+        "median": 2.75,
+        "lo": -2.05,
+        "hi": 7.17,
+        "p_sharpe_le_0": 0.1262
+      },
+      "bootstrap_block5_95ci_sharpe": {
+        "method": "moving_block",
+        "block": 5,
+        "ci_pct": 95,
+        "n": 10000,
+        "median": 3.02,
+        "lo": -1.57,
+        "hi": 6.61,
+        "p_sharpe_le_0": 0.0911
+      },
+      "permutation_p": 0.1384,
+      "deflated_sharpe_prob_by_trials": {
+        "18": 0.247,
+        "30": 0.1831,
+        "50": 0.1343,
+        "100": 0.0868
+      },
+      "per_tier": {
+        "gross": {
+          "trades": 46,
+          "win_rate": 0.6087,
+          "avg_win": 53.7,
+          "avg_loss": -48.62,
+          "profit_factor": 1.72,
+          "sharpe": 3.06,
+          "max_drawdown": 0.0227,
+          "total_return": 0.0628
+        },
+        "net_3bps": {
+          "trades": 46,
+          "win_rate": 0.6087,
+          "avg_win": 51.88,
+          "avg_loss": -50.45,
+          "profit_factor": 1.6,
+          "sharpe": 2.65,
+          "max_drawdown": 0.0239,
+          "total_return": 0.0545
+        },
+        "net_7bps": {
+          "trades": 46,
+          "win_rate": 0.587,
+          "avg_win": 51.29,
+          "avg_loss": -50.11,
+          "profit_factor": 1.45,
+          "sharpe": 2.1,
+          "max_drawdown": 0.0263,
+          "total_return": 0.0433
+        },
+        "net_10bps": {
+          "trades": 46,
+          "win_rate": 0.5652,
+          "avg_win": 51.42,
+          "avg_loss": -49.41,
+          "profit_factor": 1.35,
+          "sharpe": 1.69,
+          "max_drawdown": 0.0296,
+          "total_return": 0.0349
+        }
+      }
+    },
+    "QQQ": {
+      "trades": 166,
+      "win_rate": 0.6265,
+      "binomial_p_winrate_vs_50pct": 0.000694,
+      "gross_sharpe": 4.27,
+      "net_sharpe_3bps": 3.81,
+      "net_sharpe_7bps": 3.21,
+      "net_sharpe_10bps": 2.75,
+      "net3_sharpe_pct_of_gross": 0.8923,
+      "max_drawdown_net3": 0.0291,
+      "profit_factor_net3": 1.92,
+      "avg_win_net3": 54.97,
+      "avg_loss_net3": -48.01,
+      "total_return_net3": 0.274,
+      "lag1_autocorr_daily_pnl": 0.062,
+      "bootstrap_iid_90ci_sharpe": {
+        "method": "iid",
+        "ci_pct": 90,
+        "n": 10000,
+        "median": 3.83,
+        "lo": 1.89,
+        "hi": 5.75,
+        "p_sharpe_le_0": 0.0005
+      },
+      "bootstrap_iid_95ci_sharpe": {
+        "method": "iid",
+        "ci_pct": 95,
+        "n": 10000,
+        "median": 3.83,
+        "lo": 1.51,
+        "hi": 6.11,
+        "p_sharpe_le_0": 0.0005
+      },
+      "bootstrap_block5_95ci_sharpe": {
+        "method": "moving_block",
+        "block": 5,
+        "ci_pct": 95,
+        "n": 10000,
+        "median": 3.81,
+        "lo": 1.58,
+        "hi": 6.01,
+        "p_sharpe_le_0": 0.0009
+      },
+      "permutation_p": 0.0007,
+      "deflated_sharpe_prob_by_trials": {
+        "18": 0.9241,
+        "30": 0.8876,
+        "50": 0.8439,
+        "100": 0.7753
+      },
+      "per_tier": {
+        "gross": {
+          "trades": 166,
+          "win_rate": 0.6325,
+          "avg_win": 56.46,
+          "avg_loss": -46.87,
+          "profit_factor": 2.07,
+          "sharpe": 4.27,
+          "max_drawdown": 0.0269,
+          "total_return": 0.3069
+        },
+        "net_3bps": {
+          "trades": 166,
+          "win_rate": 0.6265,
+          "avg_win": 54.97,
+          "avg_loss": -48.01,
+          "profit_factor": 1.92,
+          "sharpe": 3.81,
+          "max_drawdown": 0.0291,
+          "total_return": 0.274
+        },
+        "net_7bps": {
+          "trades": 166,
+          "win_rate": 0.6024,
+          "avg_win": 54.41,
+          "avg_loss": -47.57,
+          "profit_factor": 1.73,
+          "sharpe": 3.21,
+          "max_drawdown": 0.032,
+          "total_return": 0.2301
+        },
+        "net_10bps": {
+          "trades": 166,
+          "win_rate": 0.5904,
+          "avg_win": 53.5,
+          "avg_loss": -48.09,
+          "profit_factor": 1.6,
+          "sharpe": 2.75,
+          "max_drawdown": 0.0342,
+          "total_return": 0.1972
+        }
+      }
+    }
+  }
+}
