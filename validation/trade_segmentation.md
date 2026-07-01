@@ -55,4 +55,24 @@ Net-of-3bps stats sliced by attributes available in the committed trade files. S
 | 0.6-1.0% | 13 | 69% | 3.15 | 1.72 |
 | >1.0% | 1 | 100% | 0.00 | inf |
 
-**Not computed here:** gap-size-at-open buckets need the prior close and the day's open, which are not in the committed trade files. This requires a data re-fetch (blocked while the Alpaca keys are deauthorized) or adding prev_close/open to the trade log going forward.
+**Gap size at open:** computed below (`scripts/gap_size_segmentation.py`), which
+fetches daily bars and joins the overnight gap to each trade date.
+
+## Gap size at open (net 3 bps) — computed from daily bars
+
+
+### SPY (46 trades)
+
+| gap bucket | trades | win% | Sharpe | PF |
+|---|---|---|---|---|
+| <0.3% | 9 | 56% | 0.26 | 1.04 |
+| 0.3-0.7% | 11 | 55% | 3.23 | 1.97 |
+| >0.7% | 26 | 65% | 2.89 | 1.61 |
+
+### QQQ (166 trades)
+
+| gap bucket | trades | win% | Sharpe | PF |
+|---|---|---|---|---|
+| <0.3% | 45 | 64% | 3.51 | 1.99 |
+| 0.3-0.7% | 52 | 62% | 5.24 | 2.33 |
+| >0.7% | 69 | 62% | 3.10 | 1.66 |

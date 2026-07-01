@@ -1,9 +1,15 @@
 # Gap-Fill (GAP_FILL v1) — Status
 
-**Status: Phase 1 built and unit-tested. Phase 2 (backtest + validation) BLOCKED
-on a live data key.** No performance numbers exist yet, by design and by
-constraint. Nothing here claims an edge; the spec's success criteria are targets
-to test, not results.
+**Status: Phase 1 built. Phase 2 default-config backtest RUN (2026-07-01, keys
+restored). Verdict: HOLD.** See `validation/gap_fill_results.md`. QQQ, 117 trades,
+net Sharpe 1.92 @3bps, correlation with ORB -0.01 (excellent diversification),
+slippage kill 13.8 bps, max DD 4.4% — but the deflated Sharpe is weak (0.30 at
+N=18, 0.03 at the combined 747-trial count), so the edge is statistically
+fragile and NOT deployed. The 729-config sweep + PBO/CSCV was then run
+(`pbo_cscv.md`): PBO 0.429, negative degradation slope, mean OOS Sharpe of the
+sweep winner -0.19 — the optimized config is overfit too. Both angles agree:
+HOLD. Revisit only with a walk-forward that holds out-of-sample or an a-priori
+config, plus an SPY add for samples.
 
 ## What is built (Phase 1)
 
