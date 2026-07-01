@@ -155,6 +155,13 @@ def load_risk_state(equity: float | None = None, mode: str | None = None) -> Ris
     if cache and cache.get("halt_reason") == "manual_kill" and bool(cache.get("is_halted")):
         is_halted, halt_reason = True, "manual_kill"
 
+    # Sticky CATASTROPHIC daily-floor breach: the day's loss hit the absolute
+    # floor (default 50% of the day's starting equity). Unlike the routine 3%
+    # daily stop (which auto-clears next day), this is a catastrophe latch that
+    # requires a manual resume before trading can restart.
+    if cache and cache.get("halt_reason") == "daily_floor_breach" and bool(cache.get("is_halted")):
+        is_halted, halt_reason = True, "daily_floor_breach"
+
     return RiskState(
         peak_equity=peak_equity,
         current_equity=eq,

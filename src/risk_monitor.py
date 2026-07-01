@@ -29,15 +29,19 @@ from config import settings
 
 
 def classify(daily_pnl: float, starting_equity: float,
-             warn_pct: float, stop_pct: float) -> str:
-    """Pure decision: 'stop' | 'warn' | 'ok' | 'unknown'.
+             warn_pct: float, stop_pct: float, floor_pct: float) -> str:
+    """Pure decision: 'floor' | 'stop' | 'warn' | 'ok' | 'unknown'.
 
+    'floor' is the catastrophic absolute daily floor (sticky halt, manual resume).
+    'stop' is the routine hard daily stop (auto-resumes next day).
     'unknown' when the baseline is unusable (non-positive) — the caller must
     then fail safe and NOT flatten.
     """
     if starting_equity is None or starting_equity <= 0:
         return "unknown"
     loss = (-daily_pnl / starting_equity) if daily_pnl < 0 else 0.0
+    if loss >= floor_pct:
+        return "floor"
     if loss >= stop_pct:
         return "stop"
     if loss >= warn_pct:
@@ -63,7 +67,8 @@ def main():
     from src.risk_manager import load_risk_state, save_risk_state
     from src.trade_logger import log_run, get_run_today
     from src.notifications import (
-        notify_daily_loss_warning, notify_daily_stop_flattened, send_notification,
+        notify_daily_loss_warning, notify_daily_stop_flattened,
+        notify_daily_floor_breach, send_notification,
     )
 
     def heartbeat(outcome, detail=""):
@@ -91,8 +96,8 @@ def main():
         prev = get_run_today("risk_monitor", mode, today)
     except Exception as e:
         print(f"  [run-log] could not read today's monitor state ({e}).")
-    if prev and prev.get("outcome") == "stopped":
-        print("  Already stopped today — nothing to do.")
+    if prev and prev.get("outcome") in ("stopped", "floor_breach"):
+        print(f"  Already {prev.get('outcome')} today — positions flat, nothing to do.")
         sys.exit(0)
 
     # Equity + baseline. Fail SAFE on any uncertainty: alert, do not flatten.
@@ -117,7 +122,7 @@ def main():
     daily_pnl = equity - starting_equity
     loss_pct = (-daily_pnl / starting_equity) if (starting_equity and daily_pnl < 0) else 0.0
     decision = classify(daily_pnl, starting_equity, settings.DAILY_LOSS_WARN_PCT,
-                        settings.MAX_DAILY_LOSS_PCT)
+                        settings.MAX_DAILY_LOSS_PCT, settings.MAX_DAILY_LOSS_ABS_PCT)
     print(f"  Equity {equity:,.2f} vs start {starting_equity:,.2f} | "
           f"P&L ${daily_pnl:+,.2f} ({loss_pct:.2%}) -> {decision}")
 
@@ -127,7 +132,7 @@ def main():
         heartbeat("no_baseline", f"start={starting_equity}")
         sys.exit(0)
 
-    if decision == "stop":
+    if decision in ("stop", "floor"):
         # Cancel working orders (the bracket legs) first, then flatten.
         closed = 0
         try:
@@ -145,15 +150,23 @@ def main():
             heartbeat("flatten_error", str(e))
             sys.exit(1)
 
-        # Halt for the day (auto-clears next trading day via load_risk_state).
-        state.is_halted = True
-        state.halt_reason = "daily_loss_limit"
         state.daily_pnl = daily_pnl
         state.current_equity = equity
-        save_risk_state(state)
-
-        notify_daily_stop_flattened(daily_pnl, loss_pct, settings.MAX_DAILY_LOSS_PCT, equity, closed)
-        heartbeat("stopped", f"loss {loss_pct:.2%}, flattened {closed}")
+        state.is_halted = True
+        if decision == "floor":
+            # Catastrophe: STICKY latch, does NOT auto-clear. Manual resume only.
+            state.halt_reason = "daily_floor_breach"
+            save_risk_state(state)
+            notify_daily_floor_breach(daily_pnl, loss_pct, settings.MAX_DAILY_LOSS_ABS_PCT,
+                                      equity, closed)
+            heartbeat("floor_breach", f"loss {loss_pct:.2%}, flattened {closed}")
+        else:
+            # Routine hard stop: halt for the day, auto-clears next trading day.
+            state.halt_reason = "daily_loss_limit"
+            save_risk_state(state)
+            notify_daily_stop_flattened(daily_pnl, loss_pct, settings.MAX_DAILY_LOSS_PCT,
+                                        equity, closed)
+            heartbeat("stopped", f"loss {loss_pct:.2%}, flattened {closed}")
         sys.exit(0)
 
     if decision == "warn":

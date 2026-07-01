@@ -68,8 +68,9 @@ env:
   ALPACA_PAPER: 'true'
   ALGO_TICKER: 'SPY'          # single-symbol default (backtest/manual)
   ALGO_TICKERS: 'SPY,QQQ'     # live trading set (execute/pre/EOD loop over these)
-  ALGO_MAX_DAILY_LOSS: '0.03'    # hard daily stop (flatten + halt for the day)
+  ALGO_MAX_DAILY_LOSS: '0.03'    # hard daily stop (flatten + halt for the day, auto-resumes)
   ALGO_DAILY_LOSS_WARN: '0.0225' # early-warning email at 3/4 of the hard stop
+  ALGO_DAILY_FLOOR: '0.50'       # catastrophic floor (flatten + STICKY halt, manual resume)
   DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}  # true only on a manual dry-run dispatch
   GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
   GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}

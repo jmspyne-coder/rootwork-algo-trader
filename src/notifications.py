@@ -296,6 +296,29 @@ def notify_daily_stop_flattened(daily_pnl, loss_pct, stop_pct, equity, positions
     )
 
 
+def notify_daily_floor_breach(daily_pnl, loss_pct, floor_pct, equity, positions_closed):
+    """Catastrophic alert: the absolute daily floor was breached. Positions are
+    flattened and trading is STICKY-halted until a manual resume."""
+    msg = (f"*CATASTROPHIC DAILY FLOOR HIT* :rotating_light::rotating_light:\n"
+           f"Down {_money(-daily_pnl)} ({loss_pct:.1%}) >= {floor_pct:.0%} floor. "
+           f"Flattened {positions_closed} position(s). HALTED until you manually resume.")
+    send_notification(msg, ":rotating_light:")
+    send_email(
+        f"🚨 Algo Trader CATASTROPHIC FLOOR — down {loss_pct:.0%}, HALTED until resume",
+        f"""<div style="font-family:sans-serif;padding:20px;background:#1a1a1a;color:#e5e5e5;border-radius:8px;">
+        <h2 style="color:#ef4444;">🚨 Absolute daily floor breached</h2>
+        <p>Today's loss reached <strong>{_money(-daily_pnl)}</strong> ({loss_pct:.1%}),
+        at or past the {floor_pct:.0%} catastrophic floor for the day.</p>
+        <p><strong>Action taken:</strong> cancelled orders and flattened
+        {positions_closed} position(s).</p>
+        <p><strong>Trading is halted and will NOT auto-resume.</strong> This needs your
+        review. When you are ready, open
+        <a href="{ACTIONS_URL}">the trading workflow</a> and run <em>resume_trading</em>.</p>
+        <p style="color:#a0a0a0;">Equity {_money(equity)}.</p>
+        </div>""",
+    )
+
+
 def notify_manual_halt(equity, actions_url=None):
     """Confirm an operator-triggered manual halt, with the one-tap resume link."""
     url = actions_url or ACTIONS_URL

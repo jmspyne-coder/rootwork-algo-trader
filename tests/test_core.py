@@ -95,17 +95,28 @@ def test_can_trade_blocked_by_manual_kill():
     assert not ok and "manual_kill" in reason
 
 
+def test_can_trade_blocked_by_daily_floor():
+    st = RiskState(peak_equity=10000, current_equity=5000, daily_starting_equity=10000,
+                   daily_pnl=-5000, consecutive_losses=0, trades_today=0,
+                   is_halted=True, halt_reason="daily_floor_breach")
+    ok, reason = can_trade(st)
+    assert not ok and "daily_floor_breach" in reason
+
+
 # ─── intraday risk monitor (daily-loss bumper) ───────────────────────
 def test_risk_monitor_classify():
     from src.risk_monitor import classify
-    warn, stop = 0.0225, 0.03
-    assert classify(-300, 10000, warn, stop) == "stop"    # exactly at 3%
-    assert classify(-350, 10000, warn, stop) == "stop"    # past 3%
-    assert classify(-250, 10000, warn, stop) == "warn"    # 2.5%, past the 2.25% warn
-    assert classify(-225, 10000, warn, stop) == "warn"    # exactly at 2.25%
-    assert classify(-100, 10000, warn, stop) == "ok"      # 1%
-    assert classify(50, 10000, warn, stop) == "ok"        # up on the day
-    assert classify(-300, 0, warn, stop) == "unknown"     # no usable baseline
+    warn, stop, floor = 0.0225, 0.03, 0.50
+    assert classify(-300, 10000, warn, stop, floor) == "stop"    # exactly at 3%
+    assert classify(-350, 10000, warn, stop, floor) == "stop"    # past 3%, below floor
+    assert classify(-4999, 10000, warn, stop, floor) == "stop"   # just under the 50% floor
+    assert classify(-5000, 10000, warn, stop, floor) == "floor"  # exactly at 50% floor
+    assert classify(-8000, 10000, warn, stop, floor) == "floor"  # catastrophic
+    assert classify(-250, 10000, warn, stop, floor) == "warn"    # 2.5%, past the 2.25% warn
+    assert classify(-225, 10000, warn, stop, floor) == "warn"    # exactly at 2.25%
+    assert classify(-100, 10000, warn, stop, floor) == "ok"      # 1%
+    assert classify(50, 10000, warn, stop, floor) == "ok"        # up on the day
+    assert classify(-300, 0, warn, stop, floor) == "unknown"     # no usable baseline
 
 
 def test_position_size_cap_binds():

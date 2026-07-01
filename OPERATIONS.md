@@ -88,10 +88,18 @@ ET-guarded to 10:00–15:35):
 - At **3%** down (the hard stop): cancels open orders, **flattens all
   positions**, halts for the day, and emails you. Trading **resumes
   automatically the next day**.
-- Thresholds live in `ALGO_MAX_DAILY_LOSS` (0.03) and `ALGO_DAILY_LOSS_WARN`
-  (0.0225), set in the workflow env and `.env`.
+- At **50%** down (the catastrophic floor, `ALGO_DAILY_FLOOR`): same flatten,
+  but a **STICKY halt that does NOT auto-resume**. It requires a manual
+  `resume_trading` after review. In normal operation the 3% stop fires long
+  before this; the floor is the last-resort backstop (fast gap, failed stop,
+  monitor gap). Base is the day's starting equity; when live with a set per-day
+  trade amount, we point it at that amount.
+- Thresholds live in `ALGO_MAX_DAILY_LOSS` (0.03), `ALGO_DAILY_LOSS_WARN`
+  (0.0225), and `ALGO_DAILY_FLOOR` (0.50), set in the workflow env and `.env`.
 - Fail-safe: if it cannot establish equity or the day's baseline, it does NOT
   flatten; it alerts instead.
+- To test the floor without a 50% loss, temporarily set `ALGO_DAILY_FLOOR` low
+  (e.g. `0.01`) and run `risk_monitor` while down a little.
 
 **Manual kill switch** (`src/killswitch.py`) — the on-demand human stop:
 - To stop everything now and keep it stopped: Actions → **Trading Schedule** →

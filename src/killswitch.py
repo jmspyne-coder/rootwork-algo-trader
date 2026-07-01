@@ -46,22 +46,28 @@ def halt():
     notify_manual_halt(equity or 0.0)
 
 
+# Sticky halts the operator clears by explicitly re-authorizing (this action).
+_OPERATOR_CLEARABLE = ("manual_kill", "daily_floor_breach")
+
+
 def resume():
-    """Clear the manual halt, if that is what is holding trading."""
+    """Clear an operator-review halt (manual kill or catastrophic daily-floor
+    breach). Leaves other halts (routine daily loss, max drawdown) alone."""
     equity = _equity_or_none()
     state = load_risk_state(equity if equity and equity > 0 else 1.0)
-    if state.halt_reason == "manual_kill" and state.is_halted:
+    if state.is_halted and state.halt_reason in _OPERATOR_CLEARABLE:
+        cleared = state.halt_reason
         state.is_halted = False
         state.halt_reason = None
         save_risk_state(state)
-        print("  [killswitch] Manual halt cleared. Trading re-authorized.")
+        print(f"  [killswitch] Cleared '{cleared}' halt. Trading re-authorized.")
         notify_manual_resume(equity or 0.0)
     elif state.is_halted:
         # Halted for some OTHER reason — do not silently override it.
-        print(f"  [killswitch] Not a manual halt (reason: {state.halt_reason}). Left in place.")
+        print(f"  [killswitch] Halt reason '{state.halt_reason}' is not operator-clearable. Left in place.")
         send_notification(
-            f"*RESUME IGNORED* halt reason is '{state.halt_reason}', not manual. "
-            f"Not overriding a real risk halt.", ":warning:")
+            f"*RESUME IGNORED* halt reason is '{state.halt_reason}'. Not overriding "
+            f"a routine daily-loss or drawdown halt (those clear on their own).", ":warning:")
     else:
         print("  [killswitch] Nothing to resume — trading is not halted.")
         send_notification("*RESUME* trading was not halted; nothing to do.", ":information_source:")

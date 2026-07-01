@@ -121,6 +121,14 @@ MAX_DAILY_LOSS_PCT = float(os.getenv("ALGO_MAX_DAILY_LOSS", "0.03"))   # 3%
 # Early-warning line (3/4 of the hard stop). The intraday monitor emails a
 # heads-up here but takes no action. Purely informational.
 DAILY_LOSS_WARN_PCT = float(os.getenv("ALGO_DAILY_LOSS_WARN", "0.0225"))  # 2.25%
+# Catastrophic absolute daily floor, as a fraction of the day's STARTING equity.
+# If a single day's loss ever reaches this, the monitor flattens and halts with a
+# STICKY latch that does NOT auto-clear — it needs a manual resume (see
+# src/killswitch.py). This is the last-resort backstop far below the 3% soft
+# stop; in normal operation the 3% stop fires long first. 0.50 = never lose more
+# than half of the day's starting capital in one day. When live with a set
+# per-day trade amount, point this at that amount instead of total equity.
+MAX_DAILY_LOSS_ABS_PCT = float(os.getenv("ALGO_DAILY_FLOOR", "0.50"))  # 50%
 MAX_CONSECUTIVE_LOSSES = int(os.getenv("ALGO_MAX_CONSEC_LOSSES", "3"))
 MAX_DRAWDOWN_PCT = float(os.getenv("ALGO_MAX_DRAWDOWN", "0.12"))       # 12%
 MAX_TRADES_PER_DAY = int(os.getenv("ALGO_MAX_TRADES_DAY", "2"))
