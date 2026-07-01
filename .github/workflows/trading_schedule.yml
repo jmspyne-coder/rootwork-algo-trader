@@ -13,6 +13,8 @@ on:
     - cron: '45 20 * * 1-5'   # end-of-day  15:45 ET (EST)
     - cron: '58 13 * * 1-5'   # health check 09:58 ET (EDT) — independent watchdog
     - cron: '58 14 * * 1-5'   # health check 09:58 ET (EST)
+    - cron: '5 13 * * 1-5'    # pre-open failsafe 09:05 ET (EDT) — verify+alert before the open
+    - cron: '5 14 * * 1-5'    # pre-open failsafe 09:05 ET (EST)
     - cron: '*/30 13-20 * * 1-5'  # intraday risk monitor every 30 min (ET-guarded to 10:00-15:35)
     - cron: '0 21 * * 5'          # weekly report Friday ~16:00-17:00 ET (after close)
   workflow_dispatch:
@@ -30,6 +32,7 @@ on:
           - smoke_order
           - cancel_orders
           - health_check
+          - preopen_failsafe
           - risk_monitor
           - halt_now
           - resume_trading
@@ -209,6 +212,22 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - run: python -m src.health_check
+
+  preopen-failsafe:
+    # ~09:05 ET: verify keys + risk state where all creds are valid, and EMAIL a
+    # green/red verdict ~35 min before the 09:40 execute. Verify-and-alert only.
+    if: >
+      (github.event_name == 'schedule' && (github.event.schedule == '5 13 * * 1-5' || github.event.schedule == '5 14 * * 1-5')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.script == 'preopen_failsafe')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m src.preopen_failsafe
 
   risk-monitor:
     # Intraday daily-loss bumper. Warns at 3/4 of the stop, FLATTENS + halts at
