@@ -76,7 +76,10 @@ def run_shadow(date_str: str, data_client=None, tickers=None, mode: str = None) 
     rows = []
     for ticker in tickers:
         try:
-            intraday = fetch_intraday_bars(ticker, day, data_client=data_client, feed="sip")
+            # Intraday on the LIVE feed (IEX): free-tier SIP forbids recent
+            # (today's) data, and IEX is what the live bot actually trades on, so
+            # the shadow faithfully represents live. Daily ATR stays SIP (older).
+            intraday = fetch_intraday_bars(ticker, day, data_client=data_client)
             ds = (day - timedelta(days=40)).isoformat()
             de = (day - timedelta(days=1)).isoformat()
             daily = fetch_daily_bars(ticker, ds, de, data_client, feed="sip")
