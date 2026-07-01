@@ -12,7 +12,7 @@ from datetime import datetime
 from src.reconcile import reconstruct_round_trips, match_exits
 from src.risk_manager import (
     compute_history_state, can_trade, calculate_position_size, RiskState,
-    consec_loss_pause_active,
+    consec_loss_pause_active, is_scale_anomaly,
 )
 from src.alpaca_client import verify_bracket_legs, to_effective_equity
 from src.orb_signal import compute_opening_range, generate_signal
@@ -95,6 +95,18 @@ def test_can_trade_blocked_by_manual_kill():
                    is_halted=True, halt_reason="manual_kill")
     ok, reason = can_trade(st)
     assert not ok and "manual_kill" in reason
+
+
+def test_scale_anomaly_detects_contamination():
+    # The exact 2026-07-01 contamination: $100k peak vs $5.1k effective equity.
+    assert is_scale_anomaly(100101.0, 5101.0, 0.60) is True
+    # A real max-drawdown-sized gap (~10%) is NOT flagged.
+    assert is_scale_anomaly(10000.0, 9000.0, 0.60) is False
+    # Right at a normal small loss.
+    assert is_scale_anomaly(5200.0, 5100.0, 0.60) is False
+    # Degenerate inputs are safe.
+    assert is_scale_anomaly(0.0, 5000.0, 0.60) is False
+    assert is_scale_anomaly(100000.0, 0.0, 0.60) is False
 
 
 def test_can_trade_blocked_by_daily_floor():

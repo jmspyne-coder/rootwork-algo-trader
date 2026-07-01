@@ -71,6 +71,20 @@ def compute_history_state(history: list[dict]) -> tuple[float, int]:
     return peak, consec
 
 
+def is_scale_anomaly(peak_equity: float, current_equity: float, threshold: float) -> bool:
+    """True if the peak-vs-current gap is too large to be a real trading loss.
+
+    Real drawdown is bounded by the 10% max-drawdown halt (trading stops there),
+    so an implied drawdown past `threshold` (default 60%) is not a loss — it is
+    data contamination: a scale change (e.g. a $100k paper row vs $5k simulated
+    equity), a bad cached row, or an un-modeled deposit/withdrawal. The caller
+    resets the peak instead of false-halting on it. See load_risk_state.
+    """
+    if peak_equity <= 0 or current_equity <= 0:
+        return False
+    return (peak_equity - current_equity) / peak_equity > threshold
+
+
 def consec_loss_pause_active(history: list[dict], pause_days: int) -> bool:
     """True if a consecutive-loss halt occurred within the last `pause_days`
     trading days, so trading should stay paused.
@@ -182,6 +196,22 @@ def load_risk_state(equity: float | None = None, mode: str | None = None) -> Ris
     # requires a manual resume before trading can restart.
     if cache and cache.get("halt_reason") == "daily_floor_breach" and bool(cache.get("is_halted")):
         is_halted, halt_reason = True, "daily_floor_breach"
+
+    # Scale-anomaly guard (runs LAST so it overrides a contamination-caused latch).
+    # An implied drawdown past SCALE_ANOMALY_DRAWDOWN_PCT cannot be a real loss
+    # (the 10% max-drawdown halt stops trading long before), so it is a stale/scale
+    # artifact — e.g. a $100k paper row measured against $5k simulated equity, which
+    # is exactly what false-halted the bot on 2026-07-01. Reset the peak to current
+    # so it cannot false-halt, and clear a max_drawdown latch that this contamination
+    # produced. A genuine max_drawdown latch (~10%) is well under the threshold and
+    # is left intact.
+    if is_scale_anomaly(peak_equity, eq, settings.SCALE_ANOMALY_DRAWDOWN_PCT):
+        print(f"  [risk] SCALE ANOMALY: peak ${peak_equity:,.0f} vs equity ${eq:,.0f} "
+              f"(> {settings.SCALE_ANOMALY_DRAWDOWN_PCT:.0%} implied drawdown) — treating as "
+              f"data contamination, resetting peak to equity. REVIEW the state tables.")
+        peak_equity = eq
+        if halt_reason == "max_drawdown":
+            is_halted, halt_reason = False, None
 
     return RiskState(
         peak_equity=peak_equity,

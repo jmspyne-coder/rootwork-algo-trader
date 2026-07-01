@@ -159,6 +159,11 @@ CONSEC_LOSS_PAUSE_DAYS = int(os.getenv("ALGO_CONSEC_PAUSE_DAYS", "2"))
 # It scales with equity (always 10% of peak), so deposits/compounding move it.
 MAX_DRAWDOWN_PCT = float(os.getenv("ALGO_MAX_DRAWDOWN", "0.10"))       # 10%
 MAX_TRADES_PER_DAY = int(os.getenv("ALGO_MAX_TRADES_DAY", "2"))
+# Scale-anomaly guard. An implied peak-to-current drawdown past this is not a real
+# trading loss (the 10% halt stops trading first) — it is a stale/scale artifact,
+# so the risk loader resets the peak instead of false-halting. 60% is far above any
+# real drawdown and above the 50% daily floor, so it never masks a genuine event.
+SCALE_ANOMALY_DRAWDOWN_PCT = float(os.getenv("ALGO_SCALE_ANOMALY_DD", "0.60"))
 
 # ─── Live account ────────────────────────────────────────────────────
 # Live position sizing pulls CURRENT account equity from Alpaca each morning
