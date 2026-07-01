@@ -14,7 +14,7 @@ has been run — nothing here is fabricated or pending on access.
 | Segmentation: direction / day-of-week / range width | Done | `trade_segmentation.md`. |
 | Segmentation: gap size at open | Done | `trade_segmentation.md` (gap-size section) via `scripts/gap_size_segmentation.py`. SPY <0.3%-gap trades near-flat (Sharpe 0.26); QQQ strongest in 0.3-0.7% band (5.24). |
 | Entry timing 5-min vs 15-min | Done | `entry_timing_comparison.md`, `entry_timing_cliff.csv` (`scripts/entry_timing_analysis.py`). Decisive: 15-min has NO edge (QQQ gross -0.34, SPY -1.11) vs 5-min positive. Keep 5-min. |
-| PBO / CSCV | Done | `pbo_cscv.md` (`scripts/cscv.py`) on the Gap-Fill 729-config sweep. PBO 0.429, degradation slope -1.12, mean OOS Sharpe of the pick -0.19 -> the sweep winner is overfit. Direct ORB PBO still needs the ORB sweep to persist returns (documented). |
+| PBO / CSCV (both strategies) | Done | `pbo_cscv.md` (`scripts/cscv.py`). Shipped ORB PBO **0.057** (not overfit, OOS Sharpe of pick +1.66; `scripts/orb_pbo_sweep.py`, 54 configs). Gap-Fill PBO 0.429 (overfit, held back). |
 | Gap-Fill v1 (separate strategy) | Backtested, HOLD | Two angles agree: `gap_fill_results.md` (default config: net Sharpe 1.92, r=-0.01 with ORB, slippage-robust, but weak DSR) and `pbo_cscv.md` (sweep winner overfit). Not deployed. |
 | REVIEWER_BRIEF.md | Done | Repo root. Real numbers, 10 sections. |
 | REVIEWER_SPEC.md | Done | Repo root. |

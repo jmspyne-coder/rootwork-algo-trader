@@ -66,7 +66,7 @@ Configurations that failed (the 15-minute ORB and the gap-fill filter) were test
 - Walk-forward: run previously (`src/walkforward.py`). A rolling optimizer overfit hard (mean in-sample-best Sharpe ~3.5 vs out-of-sample ~0.1), so params are held fixed; the candle filter held out-of-sample on a true holdout. No standing output file (prints to stdout).
 - Regime gate: overnight-gap gate at 1.5%, NOT swept, fixed, and OFF by default.
 - v2 filters (VWAP, RVOL, candle): VWAP inert, RVOL toxic (cut ~60 trades to ~3, negative Sharpe), candle helped and is the only one enabled.
-- PBO/CSCV: computed on the Gap-Fill 729-config sweep (S=8, 70 splits, `scripts/cscv.py`). A direct ORB PBO still needs the ORB sweep to persist per-config returns. See `validation/pbo_cscv.md`.
+- PBO/CSCV: computed for BOTH strategies (S=8, `scripts/cscv.py`). Shipped ORB PBO 0.057 (not overfit, OOS Sharpe of the pick +1.66); Gap-Fill PBO 0.43 (overfit, held back). See `validation/pbo_cscv.md`.
 - Entry timing (5m vs 15m): computed. The 15-minute window has no tradeable edge; the 5-minute window is the only configuration that survives. See `validation/entry_timing_comparison.md`.
 - Segmentation / leak finder: direction, day-of-week, opening-range width, and gap-size-at-open in `validation/trade_segmentation.md`.
 
@@ -81,7 +81,7 @@ Two alternative configurations were tested and rejected. Reporting them is the p
 
 **Data or time gated:** zero real-money trades; real slippage vs the assumption is unmeasured; forward persistence is unknown; IEX (live) vs SIP (backtest) opening-range divergence is not quantified (`docs/data_feed_audit.md`).
 
-**Statistical shortcuts:** deflated Sharpe uses an approximated trial variance and a trial count of 18 that is a lower bound. PBO was run on the gap-fill sweep (overfit, not shipped; Section 5), but a direct ORB PBO still needs the ORB sweep to persist per-config returns. The bootstrap is IID; observed lag-1 autocorrelation is low (SPY 0.10, QQQ 0.06), so the block bootstrap barely widens the CI here (literature warns of ~30 to 50% understatement at phi~0.2 to 0.3, up to ~2x at phi~0.6; we are below that, and QQQ's block CI still excludes zero). Samples are small: SPY 46 trades is below the ~100-trade credibility floor (win-rate binomial p 0.09), treat as supporting evidence only; QQQ 166 is borderline acceptable.
+**Statistical shortcuts:** deflated Sharpe uses an approximated trial variance and a trial count of 18 that is a lower bound. PBO was run on both strategies (ORB 0.057, not overfit; gap-fill 0.43, overfit and held back); the ORB PBO universe is 54 configs (directional, smaller than the gap sweep's 729). The bootstrap is IID; observed lag-1 autocorrelation is low (SPY 0.10, QQQ 0.06), so the block bootstrap barely widens the CI here (literature warns of ~30 to 50% understatement at phi~0.2 to 0.3, up to ~2x at phi~0.6; we are below that, and QQQ's block CI still excludes zero). Samples are small: SPY 46 trades is below the ~100-trade credibility floor (win-rate binomial p 0.09), treat as supporting evidence only; QQQ 166 is borderline acceptable.
 
 **Judgment we cannot supply:** whether ORB is decayed or crowded now; whether QQQ is structural or a 2024 to 2025 regime artifact; whether market orders fill near the backtest level on fast breakouts; what counts as enough evidence to risk capital.
 

@@ -29,8 +29,6 @@ from collections import defaultdict
 
 import numpy as np
 
-RETURNS = "validation/gap_sweep_returns.csv"
-RESULTS = "validation/gap_sweep_results.csv"
 MIN_TRADES = 30
 ANN = np.sqrt(252)
 
@@ -43,7 +41,7 @@ def sharpe(x):
     return float(x.mean() / sd * ANN) if sd > 0 else 0.0
 
 
-def load_matrix():
+def load_matrix(RETURNS, RESULTS):
     by_cfg = defaultdict(dict)
     dates = set()
     with open(RETURNS) as f:
@@ -105,8 +103,10 @@ def cscv(M, S):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--segments", type=int, default=8)
+    ap.add_argument("--returns", default="validation/gap_sweep_returns.csv")
+    ap.add_argument("--results", default="validation/gap_sweep_results.csv")
     a = ap.parse_args()
-    M, cfgs, dates = load_matrix()
+    M, cfgs, dates = load_matrix(a.returns, a.results)
     res = cscv(M, a.segments)
     print(f"Configs (>= {MIN_TRADES} trades): {res['n_configs']}")
     print(f"Trading days: {res['n_days']}  |  segments S={res['segments']}  |  "
