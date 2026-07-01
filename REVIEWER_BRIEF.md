@@ -55,6 +55,8 @@ The deflated Sharpe uses a trial count of 18, an estimated lower bound; true imp
 
 QQQ retains >70% survival probability even at 100 assumed trials, which is credible. SPY collapses under any honest trial count.
 
+Configurations that failed (the 15-minute ORB and the gap-fill filter) were tested and reported as negative results (Section 5), which reduces the risk that the surviving 5-minute ORB is a cherry-picked winner from unreported trials.
+
 ## 5. What was validated, and how
 
 - Parameter search: a v1 grid of 27 combinations (3 ORB windows x 3 R:R x 3 ATR-stop multipliers, `src/walkforward.py`), then a v2 filter A/B of 3 base configs x 4 filter stacks (`src/param_sweep.py`), ranked by Sharpe with a minimum trade-count floor.
@@ -64,15 +66,22 @@ QQQ retains >70% survival probability even at 100 assumed trials, which is credi
 - Walk-forward: run previously (`src/walkforward.py`). A rolling optimizer overfit hard (mean in-sample-best Sharpe ~3.5 vs out-of-sample ~0.1), so params are held fixed; the candle filter held out-of-sample on a true holdout. No standing output file (prints to stdout).
 - Regime gate: overnight-gap gate at 1.5%, NOT swept, fixed, and OFF by default.
 - v2 filters (VWAP, RVOL, candle): VWAP inert, RVOL toxic (cut ~60 trades to ~3, negative Sharpe), candle helped and is the only one enabled.
-- PBO/CSCV: NOT computed (per-trial sweep return series were not preserved). See `validation/pbo_cscv.md`.
-- Entry timing (5m vs 15m): NOT computed, needs a data re-fetch (keys deauthorized). See `validation/entry_timing_comparison.md`.
-- Segmentation / leak finder: direction, day-of-week, opening-range width in `validation/trade_segmentation.md` (gap-size buckets need data not in the trade files).
+- PBO/CSCV: computed on the Gap-Fill 729-config sweep (S=8, 70 splits, `scripts/cscv.py`). A direct ORB PBO still needs the ORB sweep to persist per-config returns. See `validation/pbo_cscv.md`.
+- Entry timing (5m vs 15m): computed. The 15-minute window has no tradeable edge; the 5-minute window is the only configuration that survives. See `validation/entry_timing_comparison.md`.
+- Segmentation / leak finder: direction, day-of-week, opening-range width, and gap-size-at-open in `validation/trade_segmentation.md`.
+
+### Negative results
+
+Two alternative configurations were tested and rejected. Reporting them is the point: it narrows the system to a single validated configuration rather than a cherry-picked winner from many unreported alternatives.
+
+- 15-minute ORB (entry at 09:45 ET) was backtested as an alternative to the 5-minute ORB. It produces no tradeable edge (gross Sharpe QQQ -0.34, SPY -1.11, negative before any cost is charged). The 5-minute entry window is the only configuration that survives. Detail in `validation/entry_timing_comparison.md`.
+- A gap-fill parameter sweep was run and the in-sample winner was tested via CSCV (S=8). PBO (0.43, with a negative out-of-sample degradation slope and a negative mean out-of-sample Sharpe on the selected config) confirms the winner does not hold out of sample. The gap-fill filter is overfit and was not shipped. Detail in `validation/pbo_cscv.md`.
 
 ## 6. What we could not verify
 
 **Data or time gated:** zero real-money trades; real slippage vs the assumption is unmeasured; forward persistence is unknown; IEX (live) vs SIP (backtest) opening-range divergence is not quantified (`docs/data_feed_audit.md`).
 
-**Statistical shortcuts:** deflated Sharpe uses an approximated trial variance and a trial count of 18 that is a lower bound; no PBO was run. The bootstrap is IID; observed lag-1 autocorrelation is low (SPY 0.10, QQQ 0.06), so the block bootstrap barely widens the CI here (literature warns of ~30 to 50% understatement at phi~0.2 to 0.3, up to ~2x at phi~0.6; we are below that, and QQQ's block CI still excludes zero). Samples are small: SPY 46 trades is below the ~100-trade credibility floor (win-rate binomial p 0.09), treat as supporting evidence only; QQQ 166 is borderline acceptable.
+**Statistical shortcuts:** deflated Sharpe uses an approximated trial variance and a trial count of 18 that is a lower bound. PBO was run on the gap-fill sweep (overfit, not shipped; Section 5), but a direct ORB PBO still needs the ORB sweep to persist per-config returns. The bootstrap is IID; observed lag-1 autocorrelation is low (SPY 0.10, QQQ 0.06), so the block bootstrap barely widens the CI here (literature warns of ~30 to 50% understatement at phi~0.2 to 0.3, up to ~2x at phi~0.6; we are below that, and QQQ's block CI still excludes zero). Samples are small: SPY 46 trades is below the ~100-trade credibility floor (win-rate binomial p 0.09), treat as supporting evidence only; QQQ 166 is borderline acceptable.
 
 **Judgment we cannot supply:** whether ORB is decayed or crowded now; whether QQQ is structural or a 2024 to 2025 regime artifact; whether market orders fill near the backtest level on fast breakouts; what counts as enough evidence to risk capital.
 
@@ -98,13 +107,15 @@ What this confirms: the ORB edge on QQQ-family instruments is real in the curren
 
 ORB as a class shows continued profitability through 2024 to 2026 across independent backtests. Options Cafe: 5-minute ORB on SPY 0DTE profitable across 2024 to early 2026, 5-minute nearly doubling 15-minute returns at half the drawdown. BreakOrb: 28.7M configurations tested, only 0.51% survived walk-forward, so the edge exists but parameter sensitivity is extreme (199 of 200 configs fail forward). Edgeful: ORB widely used, settings need periodic recalibration. Slippage context: Invesco (QQQ's issuer) recommends avoiding QQQ in the first 30 minutes because spreads are wider; ETF data shows spreads tightest 10:00 to 15:30; a market order at 09:40 on a breakout faces adverse selection.
 
+The 15-minute ORB showing no edge means there is no fallback entry time if 5-minute fills are problematic. The slippage question on the 5-minute entry is now a hard constraint, not a preference.
+
 ## 9. The four questions for you
 
 > **Q1, Is the edge real?** 166 QQQ trades, deflated Sharpe retains ~90% of gross and >70% even at 100 trials. 46 SPY trades, higher raw Sharpe but below the credibility floor and failing the haircut. An independent clone confirms the edge. Enough to risk $5,000, or do you want more history?
 >
 > **Q2, Stats shortcuts.** Deflated Sharpe trial count is estimated at 18 (sensitivity in Section 4); the bootstrap is IID with lag-1 autocorrelation of 0.10 (SPY) / 0.06 (QQQ). Would you redo either, and with what?
 >
-> **Q3, Execution realism.** Market-order entry with 3 to 7 bps assumed slippage at 09:40 ET. The cliff shows the edge dies at ~22 (SPY) / ~28 (QQQ) bps. Does that headroom hold for real fills, or do we need limit-style or a later entry?
+> **Q3, Execution realism.** Market-order entry with 3 to 7 bps assumed slippage on QQQ/SPY at 09:40 ET. The 15-minute ORB was tested and has no edge, so there is no fallback to a later, more liquid entry time. The slippage cliff shows the edge dies at ~22.5 (SPY) / ~28 (QQQ) bps. Does that headroom hold for real fills? If not, would limit-style entry solve it, or does the strategy need to be abandoned?
 >
 > **Q4, Go / no-go.** What would you need to see before you would risk capital? We plan to paper trade 60 to 90 days first. Is that enough?
 
@@ -113,7 +124,7 @@ ORB as a class shows continued profitability through 2024 to 2026 across indepen
 - `results/trades_{SPY,QQQ}.csv`: per-trade backtest results (Q1)
 - `validation/slippage_cliff.csv` + `_summary.md`: the cliff and kill levels (Q3)
 - `validation/dsr_sensitivity.csv`, `validation/autocorrelation_check.md`, `validation/block_bootstrap.csv`: robustness (Q2)
-- `validation/trade_segmentation.md`, `pbo_cscv.md`, `entry_timing_comparison.md`: leak finder and the two gaps (Q1, Q2)
+- `validation/trade_segmentation.md`, `pbo_cscv.md`, `entry_timing_comparison.md`: leak finder, overfitting test, and entry-timing negative result (Q1, Q2, Q3)
 - `scripts/validation_suite.py`: reproduces every figure above (Q1, Q2)
 - `config/settings.py`: all parameters and risk limits (all questions)
 - `src/orb_signal.py`: signal generation and trade simulation (Q1, Q3)
